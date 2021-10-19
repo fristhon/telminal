@@ -4,6 +4,7 @@ from time import time
 
 import pexpect
 from pexpect.exceptions import EOF
+from pexpect.exceptions import TIMEOUT
 
 
 class TProcess:
@@ -43,7 +44,7 @@ class TProcess:
             except EOF:
                 self.done()
                 break
-            except TimeoutError:
+            except TIMEOUT:
                 pass
             finally:
                 self.run_time = int(time() - self.start_time)
