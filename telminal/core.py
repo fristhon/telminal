@@ -17,7 +17,7 @@ class TProcess:
         self.start_time = None
         self.run_time = 0
         self.new_data = None
-        self.message_id = None
+        self.response_id = None
 
     def run(self) -> None:
         self._process = pexpect.spawn("/bin/bash", ["-c", self.command], timeout=None)
