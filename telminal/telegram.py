@@ -7,9 +7,10 @@ from telethon import TelegramClient
 class Telegram:
     # upload limitaion at this moment > 2GB
     UPLOAD_LIMIT = 2147483648
+    MEDIA_CAPTION_LIMIT = 1024
 
     def __init__(
-        self, *, api_id: int, api_hash: str, token: str, session_name: str = "telminal"
+        self, api_id: int, api_hash: str, token: str, session_name: str
     ) -> None:
         self._api_id = api_id
         self._api_hash = api_hash
@@ -32,6 +33,7 @@ class Telegram:
 
     async def send_file(self, file, reply_to=None):
         error = None
+        # TODO unhardcode messages?
         if not os.path.isfile(file):
             error = f"{file} is not a file"
         elif os.path.getsize(file) > Telegram.UPLOAD_LIMIT:
@@ -46,8 +48,10 @@ class Telegram:
             self.chat_id, file=file, force_document=True, reply_to=reply_to
         )
 
-    async def send_message(self, message: str):
-        return await self.client.send_message(self.chat_id, message, link_preview=False)
+    async def send_message(self, message: str, reply_to=None):
+        return await self.client.send_message(
+            self.chat_id, message, link_preview=False, reply_to=reply_to
+        )
 
     async def edit_message(self, message: str, *, message_id: int):
         return await self.client.edit_message(
