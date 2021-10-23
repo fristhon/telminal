@@ -67,10 +67,22 @@ class TProcess:
     def last_message(self, last_message: str):
         self._last_message = last_message
         self._new_data = False
+        # TODO seprate this stuff
+        self.last_update_time = time()
 
     def terminate(self):
         self._process.terminate()
         self.done()
+
+    def push(self, command):
+        if command.startswith("^") and len(command) == 2:
+            self._process.sendcontrol(command[-1])
+        else:
+            for index, word in enumerate(command.split("\n")):
+                if index != 0:
+                    # for each \n send an enter
+                    self._process.sendcontrol("m")
+                self._process.sendcontrol("m") if not word else self._process.send(word)
 
 
 class Telminal:
@@ -100,6 +112,7 @@ class Telminal:
             self.all_messages_handler: events.NewMessage(incoming=True),
             self.terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
             self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
+            self.interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
@@ -112,11 +125,22 @@ class Telminal:
     async def all_messages_handler(self, event):
         self.bot.chat_id = event.chat_id  # TODO
         command: str = event.message.message
-        process = self.new_process(command, event.message.id)
-        # TODO better?
-        Telminal.all_process[process.pid] = process
+        if self.interactive_process:
+            self.interactive_process.push(command)
+            # maybe background task finish sooner
+            # also a minimum time must be passed from last update
+            # editing a message for each input charachter not reasonable/possible
+            next_update_arrived = (
+                int(time()) - self.interactive_process.last_update_time >= 2
+            )
+            if self.interactive_process is not None and next_update_arrived:
+                await self.response(self.interactive_process)
+        else:
+            process = self.new_process(command, event.message.id)
+            # TODO better?
+            Telminal.all_process[process.pid] = process
 
-        asyncio.shield(self.run_in_background(process))
+            asyncio.shield(self.run_in_background(process))
 
     async def terminate_handler(self, event):
         pid = int(event.data.decode().split("&")[-1])
@@ -134,28 +158,48 @@ class Telminal:
             reply_to=process.request_id,
         )
 
+    async def interactive_handler(self, event):
+        pid = int(event.data.decode().split("&")[-1])
+        if self.interactive_process is None:
+            process = self.find_process_by_id(pid)
+            self.interactive_process = process
+            answer = "Interactive mode activated"
+        else:
+            self.interactive_process = None
+            answer = "Normal mode activated"
+        await event.answer(answer)
+        await self.response(Telminal.find_process_by_id(pid), buttons_update=True)
+
     def get_buttons(self, process):
         from telethon import Button
 
         if process.is_running:
+            interact_switch_text = (
+                "Interactive mode"
+                if self.interactive_process is None
+                else "Exit interactive mode"
+            )
             return [
-                [Button.inline("terminate", data=f"terminate&{process.pid}")],
+                [Button.inline("Terminate", data=f"terminate&{process.pid}")],
+                [Button.inline(interact_switch_text, data=f"interact&{process.pid}")],
                 [Button.inline("HTML", data=f"html&{process.pid}")],
             ]
         return [
             [Button.inline("HTML", data=f"html&{process.pid}")],
         ]
 
-    async def response(self, process: TProcess):
+    async def response(self, process: TProcess, buttons_update=False):
         result = process.full_output
         # handle telegram caption limit
         if len(result) >= Telegram.MEDIA_CAPTION_LIMIT:
             result = result[len(result) - Telegram.MEDIA_CAPTION_LIMIT :]
 
-        # there is no output for commands like `touch`
-        # telegram api raise an error for no changes edit
-        if not result or process.last_message == result:
-            return
+        # for a button update process message dosen't matter anymore
+        if not buttons_update:
+            # there is no output for commands like `touch`
+            # telegram api raise an error for no changes edit
+            if not result or process.last_message == result:
+                return
 
         buttons = self.get_buttons(process)
         if process.is_partial:
@@ -187,8 +231,12 @@ class Telminal:
             finally:
                 await asyncio.sleep(0.1)
 
-        # maybe process will be finished before next update
-        await self.response(process)
+        try:
+            # maybe process will be finished before next update
+            await self.response(process)
+        finally:
+            if self.interactive_process is process:
+                self.interactive_process = None
 
     @staticmethod
     def find_process_by_id(pid: int) -> TProcess:
