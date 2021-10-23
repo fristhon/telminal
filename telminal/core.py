@@ -155,7 +155,7 @@ class Telminal:
             return
         await self.bot.send_file(
             utils.make_html(pid, process.command, process.full_output),
-            reply_to=process.request_id,
+            reply_to=process.response_id,
         )
 
     async def interactive_handler(self, event):
@@ -194,6 +194,7 @@ class Telminal:
         if len(result) >= Telegram.MEDIA_CAPTION_LIMIT:
             result = result[len(result) - Telegram.MEDIA_CAPTION_LIMIT :]
 
+        # TODO dynamic button update detection is better than manuall
         # for a button update process message dosen't matter anymore
         if not buttons_update:
             # there is no output for commands like `touch`
