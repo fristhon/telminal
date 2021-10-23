@@ -18,7 +18,7 @@ class TProcess:
         self.is_partial = None
         self.start_time = None
         self.run_time = 0
-        self.new_data = None
+        self._new_data = None
         self.response_id = None
         self._last_message = ""
 
@@ -41,7 +41,7 @@ class TProcess:
             try:
                 line = self._process.read_nonblocking(size=1000, timeout=0)
                 self._buffer.write(line.decode("utf-8"))
-                self.new_data = True
+                self._new_data = True
             except EOF:
                 self.done()
                 break
@@ -63,7 +63,7 @@ class TProcess:
     @last_message.setter
     def last_message(self, last_message: str):
         self._last_message = last_message
-        self.new_data = False
+        self._new_data = False
 
 
 class Telminal:
