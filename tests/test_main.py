@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from telminal import TProcess
+from telminal.core import TProcess
 
 
 @pytest.mark.asyncio
