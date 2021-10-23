@@ -1,4 +1,5 @@
 import asyncio
+import os
 from io import StringIO
 from time import time
 
@@ -6,8 +7,8 @@ import pexpect
 from pexpect.exceptions import EOF
 from pexpect.exceptions import TIMEOUT
 
+from . import utils
 from .telegram import Telegram
-from .utils import make_html
 
 
 class TProcess:
@@ -32,6 +33,7 @@ class TProcess:
 
     def done(self):
         self.is_running = False
+        self.done_time = time()
 
     def terminate(self):
         self._process.terminate()
@@ -80,6 +82,16 @@ class Telminal:
         self.interactive_process = None
         self.bot = Telegram(api_id, api_hash, token, session_name)
 
+    @classmethod
+    async def process_cleaner(cls):
+        while True:
+            for pid, process in cls.all_process.copy().items():
+                # TODO configable or constant variables
+                if not process.is_running and int(time() - process.done_time) > 60:
+                    del cls.all_process[pid]
+                    utils.silent_file_remover(f"{pid}.html")
+            await asyncio.sleep(100)
+
     async def start(self):
         # TODO bad coupling
         from telethon import events
@@ -89,6 +101,7 @@ class Telminal:
             self.terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
             self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
         }
+        asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
 
     def new_process(self, command: str, request_id: int) -> TProcess:
@@ -113,8 +126,11 @@ class Telminal:
     async def html_handler(self, event):
         pid = int(event.data.decode().split("&")[-1])
         process = Telminal.find_process_by_id(pid)
+        if process is None:
+            await event.answer("this process not exist anymore", alert=True)
+            return
         await self.bot.send_file(
-            make_html(pid, process.command, process.full_output),
+            utils.make_html(pid, process.command, process.full_output),
             reply_to=process.request_id,
         )
 
