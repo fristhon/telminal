@@ -9,3 +9,7 @@ dist/
 *.session*
 develop_*.py
 *.html
+*.txt
+!requirements.txt
+!requirements-dev.txt
+*.log
