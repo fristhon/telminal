@@ -65,6 +65,10 @@ class TProcess:
         self._last_message = last_message
         self._new_data = False
 
+    def terminate(self):
+        self._process.terminate()
+        self.done()
+
 
 class Telminal:
     all_process = {}
@@ -81,6 +85,7 @@ class Telminal:
 
         handlers = {
             self.all_messages_handler: events.NewMessage(incoming=True),
+            self.terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
         }
         await self.bot.start(handlers)
 
@@ -98,6 +103,17 @@ class Telminal:
 
         asyncio.shield(self.run_in_background(process))
 
+    async def terminate_handler(self, event):
+        pid = int(event.data.decode().split("&")[-1])
+        process = Telminal.find_process_by_id(pid)
+        process.terminate()
+
+    def get_buttons(self, process):
+        from telethon import Button
+
+        if process.is_running:
+            return [[Button.inline("terminate", data=f"terminate&{process.pid}")]]
+
     async def response(self, process: TProcess):
         result = process.full_output
         # handle telegram caption limit
@@ -109,11 +125,16 @@ class Telminal:
         if not result or process.last_message == result:
             return
 
+        buttons = self.get_buttons(process)
         if process.is_partial:
-            await self.bot.edit_message(result, message_id=process.response_id)
+            await self.bot.edit_message(
+                result, message_id=process.response_id, buttons=buttons
+            )
         else:
             process.response_id = (
-                await self.bot.send_message(result, reply_to=process.request_id)
+                await self.bot.send_message(
+                    result, reply_to=process.request_id, buttons=buttons
+                )
             ).id
             process.is_partial = True
         process.last_message = result
@@ -136,3 +157,7 @@ class Telminal:
 
         # maybe process will be finished before next update
         await self.response(process)
+
+    @staticmethod
+    def find_process_by_id(pid: int):
+        return Telminal.all_process.get(pid)

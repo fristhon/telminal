@@ -48,12 +48,20 @@ class Telegram:
             self.chat_id, file=file, force_document=True, reply_to=reply_to
         )
 
-    async def send_message(self, message: str, reply_to=None):
+    async def send_message(self, message: str, *, reply_to: int = None, buttons=None):
         return await self.client.send_message(
-            self.chat_id, message, link_preview=False, reply_to=reply_to
+            self.chat_id,
+            message,
+            link_preview=False,
+            reply_to=reply_to,
+            buttons=buttons,
         )
 
-    async def edit_message(self, message: str, *, message_id: int):
+    async def edit_message(self, message: str, *, message_id: int, buttons=None):
         return await self.client.edit_message(
-            self.chat_id, message=message_id, text=message, link_preview=False
+            self.chat_id,
+            message=message_id,
+            text=message,
+            link_preview=False,
+            buttons=buttons,
         )
