@@ -36,10 +36,8 @@ class TProcess:
     async def stream(self) -> None:
         while True:
             try:
-                line = self._process.read_nonblocking(size=1000, timeout=0).decode(
-                    "utf-8"
-                )
-                self._buffer.write(line)
+                line = self._process.read_nonblocking(size=1000, timeout=0)
+                self._buffer.write(line.decode("utf-8"))
                 self.new_data = True
             except EOF:
                 self.done()
