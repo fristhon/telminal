@@ -26,10 +26,10 @@ class TProcess:
         self.start_time = time()
         asyncio.create_task(self.stream())
 
-    def done(self) -> None:
+    def done(self):
         self.is_running = False
 
-    def terminate(self) -> None:
+    def terminate(self):
         self._process.terminate()
         self.done()
 
