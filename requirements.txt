@@ -1,0 +1,2 @@
+pexpect==4.8.0
+Telethon==1.23.0
