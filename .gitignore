@@ -8,3 +8,4 @@ dist/
 .tox/
 *.session*
 develop_*.py
+*.html
