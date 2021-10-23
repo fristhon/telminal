@@ -1,3 +1,5 @@
+import contextlib
+import os
 from pathlib import Path
 
 path = Path()
@@ -70,3 +72,8 @@ def make_html(pid, title, data):
     with open(file, "w", encoding="utf-8") as html:
         html.write(HMTL_TEMPLATE.format(title=f"{pid} -> {title}", data=data))
     return file
+
+
+def silent_file_remover(file):
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(file)

@@ -1,7 +1,8 @@
-import contextlib
 import os
 
 from telethon import TelegramClient
+
+from . import utils
 
 
 class Telegram:
@@ -21,9 +22,8 @@ class Telegram:
 
     def _remove_old_sessions(self) -> None:
         # an easy way to handle session db lock error
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(f"{self.session_name}.session")
-            os.remove(f"{self.session_name}.session-journal")
+        utils.silent_file_remover(f"{self.session_name}.session")
+        utils.silent_file_remover(f"{self.session_name}.session-journal")
 
     async def start(self, handlers: dict):
         await self.client.start(bot_token=self._token)
