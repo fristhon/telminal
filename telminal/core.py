@@ -7,6 +7,7 @@ from pexpect.exceptions import EOF
 from pexpect.exceptions import TIMEOUT
 
 from .telegram import Telegram
+from .utils import make_html
 
 
 class TProcess:
@@ -86,6 +87,7 @@ class Telminal:
         handlers = {
             self.all_messages_handler: events.NewMessage(incoming=True),
             self.terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
+            self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
         }
         await self.bot.start(handlers)
 
@@ -108,11 +110,25 @@ class Telminal:
         process = Telminal.find_process_by_id(pid)
         process.terminate()
 
+    async def html_handler(self, event):
+        pid = int(event.data.decode().split("&")[-1])
+        process = Telminal.find_process_by_id(pid)
+        await self.bot.send_file(
+            make_html(pid, process.command, process.full_output),
+            reply_to=process.request_id,
+        )
+
     def get_buttons(self, process):
         from telethon import Button
 
         if process.is_running:
-            return [[Button.inline("terminate", data=f"terminate&{process.pid}")]]
+            return [
+                [Button.inline("terminate", data=f"terminate&{process.pid}")],
+                [Button.inline("HTML", data=f"html&{process.pid}")],
+            ]
+        return [
+            [Button.inline("HTML", data=f"html&{process.pid}")],
+        ]
 
     async def response(self, process: TProcess):
         result = process.full_output
@@ -159,5 +175,5 @@ class Telminal:
         await self.response(process)
 
     @staticmethod
-    def find_process_by_id(pid: int):
+    def find_process_by_id(pid: int) -> TProcess:
         return Telminal.all_process.get(pid)

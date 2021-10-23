@@ -65,3 +65,19 @@ class Telegram:
             link_preview=False,
             buttons=buttons,
         )
+
+    async def send_file(self, file, reply_to=None):
+        error = None
+        if not os.path.isfile(file):
+            error = f"{file} is not a file"
+        elif os.path.getsize(file) > Telegram.UPLOAD_LIMIT:
+            error = "Sorry I can't send file bigger than 2G"
+
+        if error is not None:
+            return await self.client.send_message(
+                self.chat_id, error, reply_to=reply_to
+            )
+
+        return await self.client.send_message(
+            self.chat_id, file=file, force_document=True, reply_to=reply_to
+        )
