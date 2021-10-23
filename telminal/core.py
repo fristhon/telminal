@@ -18,6 +18,7 @@ class TProcess:
         self.run_time = 0
         self.new_data = None
         self.response_id = None
+        self._last_message = ""
 
     def run(self) -> None:
         self._process = pexpect.spawn("/bin/bash", ["-c", self.command], timeout=None)
@@ -52,3 +53,12 @@ class TProcess:
     def full_output(self) -> str:
         self._buffer.seek(0)
         return self._buffer.read()
+
+    @property
+    def last_message(self):
+        return self._last_message
+
+    @last_message.setter
+    def last_message(self, last_message: str):
+        self._last_message = last_message
+        self.new_data = False
