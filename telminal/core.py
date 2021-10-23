@@ -5,7 +5,6 @@ from time import time
 import pexpect
 from pexpect.exceptions import EOF
 from pexpect.exceptions import TIMEOUT
-from telethon import events
 
 from .telegram import Telegram
 
@@ -77,6 +76,9 @@ class Telminal:
         self.bot = Telegram(api_id, api_hash, token, session_name)
 
     async def start(self):
+        # TODO bad coupling
+        from telethon import events
+
         handlers = {
             self.all_messages_handler: events.NewMessage(incoming=True),
         }
