@@ -13,3 +13,4 @@ develop_*.py
 !requirements.txt
 !requirements-dev.txt
 *.log
+*.path
