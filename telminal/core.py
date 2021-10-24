@@ -23,6 +23,7 @@ class TProcess:
         self._new_data = None
         self.response_id = None
         self._last_message = ""
+        self.buttons = None
 
     def run(self) -> None:
         self._process = pexpect.spawn("/bin/bash", ["-c", self.command], timeout=None)
@@ -83,6 +84,29 @@ class TProcess:
                     # for each \n send an enter
                     self._process.sendcontrol("m")
                 self._process.sendcontrol("m") if not word else self._process.send(word)
+
+    def update_buttons(self, interactive_process):
+        from telethon import Button
+
+        if self.is_running:
+            interact_switch_text = "Interactive mode"
+            if self is interactive_process:
+                interact_switch_text = "Exit interactive mode"
+
+            buttons = [
+                [Button.inline("Terminate", data=f"terminate&{self.pid}")],
+                [Button.inline(interact_switch_text, data=f"interact&{self.pid}")],
+                [Button.inline("HTML", data=f"html&{self.pid}")],
+            ]
+        else:
+            buttons = [
+                [Button.inline("HTML", data=f"html&{self.pid}")],
+            ]
+
+        if self.buttons != buttons:
+            self.buttons = buttons
+            return True
+        return False
 
 
 class Telminal:
@@ -163,54 +187,35 @@ class Telminal:
         if self.interactive_process is None:
             process = self.find_process_by_id(pid)
             self.interactive_process = process
-            answer = "Interactive mode activated"
+            answer = f"You are talking to PID : {process.pid}"
         else:
             self.interactive_process = None
             answer = "Normal mode activated"
-        await event.answer(answer)
-        await self.response(Telminal.find_process_by_id(pid), buttons_update=True)
+        await event.answer(answer, alert=True)
+        await self.response(Telminal.find_process_by_id(pid))
 
-    def get_buttons(self, process):
-        from telethon import Button
-
-        if process.is_running:
-            interact_switch_text = (
-                "Interactive mode"
-                if self.interactive_process is None
-                else "Exit interactive mode"
-            )
-            return [
-                [Button.inline("Terminate", data=f"terminate&{process.pid}")],
-                [Button.inline(interact_switch_text, data=f"interact&{process.pid}")],
-                [Button.inline("HTML", data=f"html&{process.pid}")],
-            ]
-        return [
-            [Button.inline("HTML", data=f"html&{process.pid}")],
-        ]
-
-    async def response(self, process: TProcess, buttons_update=False):
+    async def response(self, process: TProcess):
         result = process.full_output
         # handle telegram caption limit
         if len(result) >= Telegram.MEDIA_CAPTION_LIMIT:
             result = result[len(result) - Telegram.MEDIA_CAPTION_LIMIT :]
 
-        # TODO dynamic button update detection is better than manuall
-        # for a button update process message dosen't matter anymore
-        if not buttons_update:
+        new_buttons = process.update_buttons(self.interactive_process)
+        # for a button update request, content dosen't matter anymore
+        if new_buttons is False:
             # there is no output for commands like `touch`
             # telegram api raise an error for no changes edit
             if not result or process.last_message == result:
                 return
 
-        buttons = self.get_buttons(process)
         if process.is_partial:
             await self.bot.edit_message(
-                result, message_id=process.response_id, buttons=buttons
+                result, message_id=process.response_id, buttons=process.buttons
             )
         else:
             process.response_id = (
                 await self.bot.send_message(
-                    result, reply_to=process.request_id, buttons=buttons
+                    result, reply_to=process.request_id, buttons=process.buttons
                 )
             ).id
             process.is_partial = True
