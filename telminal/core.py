@@ -1,6 +1,7 @@
 import asyncio
-import os
+from asyncio.events import Handle
 from io import StringIO
+from subprocess import PIPE
 from time import time
 
 import pexpect
@@ -137,6 +138,7 @@ class Telminal:
             self.terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
             self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
             self.interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
+            self.inline_query_handler: events.InlineQuery(),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
@@ -146,11 +148,21 @@ class Telminal:
         process.run()
         return process
 
+    async def special_commands_handler(self, command: str, request_id: int):
+        param = command.split()[-1]
+        if command.startswith("!get"):
+            await self.bot.send_file(file=param, reply_to=request_id)
+
     async def all_messages_handler(self, event):
         self.bot.chat_id = event.chat_id  # TODO
         command: str = event.message.message
+
+        if command.startswith("!"):
+            await self.special_commands_handler(command, event.message.id)
+            return
+
         if self.interactive_process:
-            self.interactive_process.push(command)
+            self.interactive_process.push(command, event.message.id)
             # maybe background task finish sooner
             # also a minimum time must be passed from last update
             # editing a message for each input charachter not reasonable/possible
@@ -195,6 +207,26 @@ class Telminal:
             answer = "Normal mode activated"
         await event.answer(answer, alert=True)
         await self.response(Telminal.find_process_by_id(pid))
+
+    async def inline_query_handler(self, event):
+        command = "ls -la" if not event.text else f"ls -la | grep {event.text}"
+        process = await asyncio.subprocess.create_subprocess_shell(
+            command, stdin=PIPE, stdout=PIPE, stderr=PIPE
+        )
+        files = (await process.stdout.read()).decode().split("\n")
+
+        builder = event.builder
+        results = []
+        for file in files:
+            # means this is a file and not a directory
+            if file.startswith("-"):
+                file_name = file.split()[-1]
+                results.append(
+                    builder.article(
+                        text=f"!get {file_name}", title=file_name, description=file
+                    )
+                )
+        await event.answer(results=results, cache_time=0)
 
     async def response(self, process: TProcess):
         result = process.full_output
