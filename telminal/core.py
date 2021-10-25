@@ -1,4 +1,5 @@
 import asyncio
+import os
 from asyncio.events import Handle
 from io import StringIO
 from subprocess import PIPE
@@ -152,17 +153,25 @@ class Telminal:
         param = command.split()[-1]
         if command.startswith("!get"):
             await self.bot.send_file(file=param, reply_to=request_id)
+        elif command.startswith("cd"):
+            try:
+                os.chdir(param)
+            except FileNotFoundError:
+                await self.bot.send_message(
+                    f"cd: {param}: No such file or directory", reply_to=request_id
+                )
 
     async def all_messages_handler(self, event):
         self.bot.chat_id = event.chat_id  # TODO
         command: str = event.message.message
 
-        if command.startswith("!"):
+        is_special_command = command.startswith("!") or command.split()[0] == "cd"
+        if self.interactive_process is None and is_special_command:
             await self.special_commands_handler(command, event.message.id)
             return
 
         if self.interactive_process:
-            self.interactive_process.push(command, event.message.id)
+            self.interactive_process.push(command)
             # maybe background task finish sooner
             # also a minimum time must be passed from last update
             # editing a message for each input charachter not reasonable/possible
