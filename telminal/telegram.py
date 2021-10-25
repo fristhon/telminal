@@ -57,7 +57,7 @@ class Telegram:
             buttons=buttons,
         )
 
-    async def edit_message(self, message: str, *, message_id: int, buttons=None):
+    async def edit_message(self, *, message_id: int, message=None, buttons=None):
         return await self.client.edit_message(
             self.chat_id,
             message=message_id,

@@ -176,6 +176,8 @@ class Telminal:
         process = Telminal.find_process_by_id(pid)
         if process is None:
             await event.answer("this process not exist anymore", alert=True)
+            # clear button
+            await self.bot.edit_message(message_id=event.message_id)
             return
         await self.bot.send_file(
             utils.make_html(pid, process.command, process.full_output),
@@ -210,7 +212,7 @@ class Telminal:
 
         if process.is_partial:
             await self.bot.edit_message(
-                result, message_id=process.response_id, buttons=process.buttons
+                message=result, message_id=process.response_id, buttons=process.buttons
             )
         else:
             process.response_id = (
