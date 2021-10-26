@@ -251,12 +251,13 @@ class Telminal:
 
     async def interactive_handler(self, event):
         process = self.find_process_by_event(event)
-        if self.interactive_process is None:
-            self.interactive_process = process
-            answer = f"You are talking to PID : {process.pid}"
-        else:
+        if self.interactive_process is process:
             self.interactive_process = None
             answer = "Normal mode activated"
+        else:
+            answer = f"You are talking to PID {process.pid}"
+            self.interactive_process = process
+
         await event.answer(answer, alert=True)
         await self.response(process)
 
