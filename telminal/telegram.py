@@ -73,5 +73,7 @@ class Telegram:
     async def get_message(self, message_id: int):
         return await self._client.get_messages(self.chat_id, ids=message_id)
 
-    async def download_media(self, message, progress_callback):
-        await self._client.download_media(message, progress_callback=progress_callback)
+    async def download_media(self, message, *, progress_callback, file):
+        await self._client.download_media(
+            message, progress_callback=progress_callback, file=file
+        )

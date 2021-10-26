@@ -1,7 +1,6 @@
 import asyncio
 import os
 import re
-from asyncio.events import Handle
 from functools import partial
 from io import StringIO
 from subprocess import PIPE
@@ -142,8 +141,8 @@ class Telminal:
             self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
             self.interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
             self.inline_query_handler: events.InlineQuery(),
-            self.cancell_saving_file: events.CallbackQuery(pattern=r"removeme"),
-            self.confirm_saving_file: events.CallbackQuery(pattern=r"savefile&\d+"),
+            self.cancell_download_handler: events.CallbackQuery(pattern=r"removeme"),
+            self.confirm_download_handler: events.CallbackQuery(pattern=r"savefile&.+"),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
@@ -175,15 +174,30 @@ class Telminal:
                     f"cd: {param}: No such file or directory", reply_to=request_id
                 )
 
-    async def file_event_handler(self, message_id: int):
+    async def send_download_buttons(self, message_id: int, file_name: str):
         from telethon import Button
 
-        buttons = [
-            Button.inline("cancell", data=f"removeme"),
-            Button.inline("Yes", data=f"savefile&{message_id}"),
-        ]
+        buttons = []
+        if os.path.exists(file_name):
+            message = f"`{file_name}` currentlly exists on this directory"
+            buttons.extend(
+                [
+                    [
+                        Button.inline(
+                            "Save as new file", data=f"savefile&new&{message_id}"
+                        )
+                    ],
+                    [Button.inline("Overwrite", data=f"savefile&true&{message_id}")],
+                ]
+            )
+        else:
+            message = "Do you want to save this file on sever?"
+            buttons.append([Button.inline("Yes", data=f"savefile&new&{message_id}")])
+
+        buttons.append([Button.inline("Cancell", data="removeme")])
+
         await self.bot.send_message(
-            "Do you want to save this file on sever?",
+            message,
             reply_to=message_id,
             buttons=buttons,
         )
@@ -191,12 +205,15 @@ class Telminal:
     async def all_messages_handler(self, event):
         self.bot.chat_id = event.chat_id  # TODO
         command: str = event.message.message
-        is_special_command = command.startswith("!") or command.split()[0] == "cd"
 
         if event.file:
-            await self.file_event_handler(event.message_id)
+            await self.send_download_buttons(event.id, event.file.name)
 
-        elif self.interactive_process is None and is_special_command:
+        elif (
+            self.interactive_process is None
+            and command.startswith("!")
+            or command.split()[0] == "cd"
+        ):
             await self.special_commands_handler(command, event.message.id)
 
         elif self.interactive_process:
@@ -269,7 +286,11 @@ class Telminal:
         percent_str = f"{current / total:.2%}"
         percent_int = int(percent_str.split(".")[0])
 
-        emoji = "🟩" if percent_int != 100 else "☑️"
+        emoji = "🟩"
+        if percent_int == 100:
+            emoji = "☑️"
+            title = "Finished Successfully"
+
         emoji_count = 0 if percent_int <= 10 else int(percent_str[0])
 
         text = f"""\
@@ -279,17 +300,21 @@ class Telminal:
         await self.bot.edit_message(message_id=message_id, message=text)
         await asyncio.sleep(5)
 
-    async def confirm_saving_file(self, event):
-        message_id = int(event.data.decode().split("&")[-1])
-        message = await self.bot.get_message(message_id)
+    async def confirm_download_handler(self, event):
+        _, overwrite, message_id = event.data.decode().split("&")
+        message = await self.bot.get_message(int(message_id))
         partial_callback = partial(
             self.progress_callback,
             message_id=event.message_id,
-            title=f"Downloading `{message.file.name}`",
+            title="Downloading started...",
         )
-        await self.bot.download_media(message, partial_callback)
 
-    async def cancell_saving_file(self, event):
+        file = message.file.name if overwrite == "true" else None
+        await self.bot.download_media(
+            message, progress_callback=partial_callback, file=file
+        )
+
+    async def cancell_download_handler(self, event):
         await event.delete()
 
     async def response(self, process: TProcess):
