@@ -175,30 +175,31 @@ class Telminal:
                     f"cd: {param}: No such file or directory", reply_to=request_id
                 )
 
+    async def file_event_handler(self, message_id: int):
+        from telethon import Button
+
+        buttons = [
+            Button.inline("cancell", data=f"removeme"),
+            Button.inline("Yes", data=f"savefile&{message_id}"),
+        ]
+        await self.bot.send_message(
+            "Do you want to save this file on sever?",
+            reply_to=message_id,
+            buttons=buttons,
+        )
+
     async def all_messages_handler(self, event):
         self.bot.chat_id = event.chat_id  # TODO
         command: str = event.message.message
+        is_special_command = command.startswith("!") or command.split()[0] == "cd"
 
         if event.file:
-            from telethon import Button
+            await self.file_event_handler(event.message_id)
 
-            buttons = [
-                Button.inline("cancell", data=f"removeme"),
-                Button.inline("Yes", data=f"savefile&{event.message.id}"),
-            ]
-            await self.bot.send_message(
-                "Do you want to save this file on sever?",
-                reply_to=event.message.id,
-                buttons=buttons,
-            )
-            return
-
-        is_special_command = command.startswith("!") or command.split()[0] == "cd"
-        if self.interactive_process is None and is_special_command:
+        elif self.interactive_process is None and is_special_command:
             await self.special_commands_handler(command, event.message.id)
-            return
 
-        if self.interactive_process:
+        elif self.interactive_process:
             self.interactive_process.push(command)
             # maybe background task finish sooner
             # also a minimum time must be passed from last update
