@@ -19,7 +19,7 @@ class Telegram:
         self._token = token
         self.session_name = session_name
         self._remove_old_sessions()
-        self.client = TelegramClient(session_name, api_id, api_hash)
+        self._client = TelegramClient(session_name, api_id, api_hash)
 
     def _remove_old_sessions(self) -> None:
         # an easy way to handle session db lock error
@@ -27,13 +27,13 @@ class Telegram:
         utils.silent_file_remover(f"{self.session_name}.session-journal")
 
     async def start(self, handlers: dict):
-        await self.client.start(bot_token=self._token)
+        await self._client.start(bot_token=self._token)
         for handler, type_ in handlers.items():
-            self.client.add_event_handler(handler, type_)
-        await self.client.run_until_disconnected()
+            self._client.add_event_handler(handler, type_)
+        await self._client.run_until_disconnected()
 
     async def send_message(self, message: str, *, reply_to: int = None, buttons=None):
-        return await self.client.send_message(
+        return await self._client.send_message(
             self.chat_id,
             message,
             link_preview=False,
@@ -42,7 +42,7 @@ class Telegram:
         )
 
     async def edit_message(self, *, message_id: int, message=None, buttons=None):
-        return await self.client.edit_message(
+        return await self._client.edit_message(
             self.chat_id,
             message=message_id,
             text=message,
@@ -58,11 +58,11 @@ class Telegram:
             error = "Sorry I can't send file bigger than 2G"
 
         if error is not None:
-            return await self.client.send_message(
+            return await self._client.send_message(
                 self.chat_id, error, reply_to=reply_to
             )
 
-        return await self.client.send_file(
+        return await self._client.send_file(
             self.chat_id,
             file=file,
             force_document=True,
@@ -71,7 +71,7 @@ class Telegram:
         )
 
     async def get_message(self, message_id: int):
-        return await self.client.get_messages(self.chat_id, ids=message_id)
+        return await self._client.get_messages(self.chat_id, ids=message_id)
 
     async def download_media(self, message, progress_callback):
-        await self.client.download_media(message, progress_callback=progress_callback)
+        await self._client.download_media(message, progress_callback=progress_callback)
