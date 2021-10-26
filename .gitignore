@@ -15,3 +15,4 @@ develop_*.py
 *.log
 *.path
 *.json
+test.py
