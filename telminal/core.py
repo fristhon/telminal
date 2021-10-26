@@ -1,6 +1,8 @@
 import asyncio
 import os
+import re
 from asyncio.events import Handle
+from functools import partial
 from io import StringIO
 from subprocess import PIPE
 from time import time
@@ -140,6 +142,8 @@ class Telminal:
             self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
             self.interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
             self.inline_query_handler: events.InlineQuery(),
+            self.cancell_saving_file: events.CallbackQuery(pattern=r"removeme"),
+            self.confirm_saving_file: events.CallbackQuery(pattern=r"savefile&\d+"),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
@@ -150,9 +154,19 @@ class Telminal:
         return process
 
     async def special_commands_handler(self, command: str, request_id: int):
-        param = command.split()[-1]
+        param = command.split(" ", 1)[-1]
         if command.startswith("!get"):
-            await self.bot.send_file(file=param, reply_to=request_id)
+            message = await self.bot.send_message(
+                "Uploading started...", reply_to=request_id
+            )
+            partial_callback = partial(
+                self.progress_callback,
+                message_id=message.id,
+                title=f"Uploading `{param}`",
+            )
+            await self.bot.send_file(
+                file=param, reply_to=request_id, progress_callback=partial_callback
+            )
         elif command.startswith("cd"):
             try:
                 os.chdir(param)
@@ -164,6 +178,20 @@ class Telminal:
     async def all_messages_handler(self, event):
         self.bot.chat_id = event.chat_id  # TODO
         command: str = event.message.message
+
+        if event.file:
+            from telethon import Button
+
+            buttons = [
+                Button.inline("cancell", data=f"removeme"),
+                Button.inline("Yes", data=f"savefile&{event.message.id}"),
+            ]
+            await self.bot.send_message(
+                "Do you want to save this file on sever?",
+                reply_to=event.message.id,
+                buttons=buttons,
+            )
+            return
 
         is_special_command = command.startswith("!") or command.split()[0] == "cd"
         if self.interactive_process is None and is_special_command:
@@ -226,16 +254,45 @@ class Telminal:
 
         builder = event.builder
         results = []
+        file_name_pattern = re.compile(r"(.+)\s\d{2}:\d{2}")
         for file in files:
             # means this is a file and not a directory
             if file.startswith("-"):
-                file_name = file.split()[-1]
+                # handle space in file name
+                file_name = file_name_pattern.findall(file[::-1])[0][::-1]
                 results.append(
                     builder.article(
                         text=f"!get {file_name}", title=file_name, description=file
                     )
                 )
         await event.answer(results=results, cache_time=0)
+
+    async def progress_callback(self, current, total, *, message_id: int, title: str):
+        percent_str = f"{current / total:.2%}"
+        percent_int = int(percent_str.split(".")[0])
+
+        emoji = "🟩" if percent_int != 100 else "☑️"
+        emoji_count = 0 if percent_int <= 10 else int(percent_str[0])
+
+        text = f"""\
+        {title}
+        {emoji_count * emoji} {percent_str}
+        """
+        await self.bot.edit_message(message_id=message_id, message=text)
+        await asyncio.sleep(5)
+
+    async def confirm_saving_file(self, event):
+        message_id = int(event.data.decode().split("&")[-1])
+        message = await self.bot.get_message(message_id)
+        partial_callback = partial(
+            self.progress_callback,
+            message_id=event.message_id,
+            title=f"Downloading `{message.file.name}`",
+        )
+        await self.bot.download_media(message, partial_callback)
+
+    async def cancell_saving_file(self, event):
+        await event.delete()
 
     async def response(self, process: TProcess):
         result = process.full_output

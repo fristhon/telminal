@@ -1,6 +1,7 @@
 import os
 
 from telethon import TelegramClient
+from telethon.hints import ProgressCallback
 
 from . import utils
 
@@ -31,23 +32,6 @@ class Telegram:
             self.client.add_event_handler(handler, type_)
         await self.client.run_until_disconnected()
 
-    async def send_file(self, file, reply_to=None):
-        error = None
-        # TODO unhardcode messages?
-        if not os.path.isfile(file):
-            error = f"{file} is not a file"
-        elif os.path.getsize(file) > Telegram.UPLOAD_LIMIT:
-            error = "Sorry I can't send file bigger than 2G"
-
-        if error is not None:
-            return await self.client.send_message(
-                self.chat_id, error, reply_to=reply_to
-            )
-
-        return await self.client.send_message(
-            self.chat_id, file=file, force_document=True, reply_to=reply_to
-        )
-
     async def send_message(self, message: str, *, reply_to: int = None, buttons=None):
         return await self.client.send_message(
             self.chat_id,
@@ -66,7 +50,7 @@ class Telegram:
             buttons=buttons,
         )
 
-    async def send_file(self, file, reply_to=None):
+    async def send_file(self, file, reply_to=None, progress_callback=None):
         error = None
         if not os.path.isfile(file):
             error = f"{file} is not a file"
@@ -78,6 +62,16 @@ class Telegram:
                 self.chat_id, error, reply_to=reply_to
             )
 
-        return await self.client.send_message(
-            self.chat_id, file=file, force_document=True, reply_to=reply_to
+        return await self.client.send_file(
+            self.chat_id,
+            file=file,
+            force_document=True,
+            reply_to=reply_to,
+            progress_callback=progress_callback,
         )
+
+    async def get_message(self, message_id: int):
+        return await self.client.get_messages(self.chat_id, ids=message_id)
+
+    async def download_media(self, message, progress_callback):
+        await self.client.download_media(message, progress_callback=progress_callback)
