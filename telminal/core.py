@@ -216,34 +216,31 @@ class Telminal:
             asyncio.shield(self.run_in_background(process))
 
     async def terminate_handler(self, event):
-        pid = int(event.data.decode().split("&")[-1])
-        process = Telminal.find_process_by_id(pid)
+        process = Telminal.find_process_by_event(event)
         process.terminate()
 
     async def html_handler(self, event):
-        pid = int(event.data.decode().split("&")[-1])
-        process = Telminal.find_process_by_id(pid)
+        process = Telminal.find_process_by_event(event)
         if process is None:
             await event.answer("this process not exist anymore", alert=True)
             # clear button
             await self.bot.edit_message(message_id=event.message_id)
             return
         await self.bot.send_file(
-            utils.make_html(pid, process.command, process.full_output),
+            utils.make_html(process.pid, process.command, process.full_output),
             reply_to=process.response_id,
         )
 
     async def interactive_handler(self, event):
-        pid = int(event.data.decode().split("&")[-1])
+        process = self.find_process_by_event(event)
         if self.interactive_process is None:
-            process = self.find_process_by_id(pid)
             self.interactive_process = process
             answer = f"You are talking to PID : {process.pid}"
         else:
             self.interactive_process = None
             answer = "Normal mode activated"
         await event.answer(answer, alert=True)
-        await self.response(Telminal.find_process_by_id(pid))
+        await self.response(process)
 
     async def inline_query_handler(self, event):
         command = "ls -la" if not event.text else f"ls -la | grep {event.text}"
@@ -345,5 +342,6 @@ class Telminal:
                 self.interactive_process = None
 
     @staticmethod
-    def find_process_by_id(pid: int) -> TProcess:
+    def find_process_by_event(event) -> TProcess:
+        pid = int(event.data.decode().split("&")[-1])
         return Telminal.all_process.get(pid)
