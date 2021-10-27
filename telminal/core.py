@@ -161,6 +161,7 @@ class Telminal:
                 if not process.is_running and int(time() - process.done_time) > 60:
                     del cls.all_process[pid]
                     utils.silent_file_remover(f"{pid}.html")
+                    utils.silent_file_remover(f"{pid}.png")
             await asyncio.sleep(100)
 
     def check_permission(func):
