@@ -174,6 +174,12 @@ class Telminal:
         param = command.split(" ", 1)[-1]
         chat_id, request_id = event.chat_id, event.message.id
         if command.startswith("!get"):
+            if not os.path.isfile(param):
+                await self.bot.send_message(
+                    chat_id, f"`{param}` is not a file", reply_to=request_id
+                )
+                return
+
             message = await self.bot.send_message(
                 chat_id, "Uploading started...", reply_to=request_id
             )
