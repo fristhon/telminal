@@ -114,6 +114,7 @@ class TProcess:
 
 class Telminal:
     all_process = {}
+    all_progress_callback = {}
 
     def __init__(
         self, *, api_id: int, api_hash: str, token: str, session_name: str = "telminal"
@@ -286,9 +287,10 @@ class Telminal:
     async def progress_callback(self, current, total, *, message_id: int, title: str):
         percent_str = f"{current / total:.2%}"
         percent_int = int(percent_str.split(".")[0])
+        upload_finished = percent_int == 100
 
         emoji = "🟩"
-        if percent_int == 100:
+        if upload_finished:
             emoji = "☑️"
             title = "Finished Successfully"
 
@@ -298,8 +300,13 @@ class Telminal:
         {title}
         {emoji_count * emoji} {percent_str}
         """
-        await self.bot.edit_message(message_id=message_id, message=text)
-        await asyncio.sleep(5)
+        # showing upload state to user each 5 second
+        if (
+            int(time() - self.all_progress_callback.get(message_id, 0)) > 5
+            or upload_finished
+        ):
+            await self.bot.edit_message(message_id=message_id, message=text)
+            self.all_progress_callback[message_id] = time()
 
     async def confirm_download_handler(self, event):
         _, overwrite, message_id = event.data.decode().split("&")
