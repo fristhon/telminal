@@ -32,6 +32,7 @@ class TProcess:
         self.response_id = None
         self._last_message = ""
         self.buttons = None
+        self.is_interactive_process = False
 
     def run(self) -> None:
         self._process = pexpect.spawn("/bin/bash", ["-c", self.command], timeout=None)
@@ -108,12 +109,12 @@ class TProcess:
                     self._process.sendcontrol("m")
                 self._process.sendcontrol("m") if not word else self._process.send(word)
 
-    def update_buttons(self, interactive_process):
+    def update_buttons(self):
         from telethon import Button
 
         if self.is_running:
             interact_switch_text = "Interactive mode"
-            if self is interactive_process:
+            if self.is_interactive_process:
                 interact_switch_text = "Exit interactive mode"
 
             buttons = [
@@ -130,6 +131,9 @@ class TProcess:
             self.buttons = buttons
             return True
         return False
+
+    def has_new_state(self, new_output):
+        return self.new_buttons or (new_output and self.last_message != new_output)
 
 
 class Telminal:
@@ -198,6 +202,7 @@ class Telminal:
         await self.bot.start(handlers)
 
     async def render_xtermjs(self, process):
+        """returns xtermjs output as parsed text and screenshot"""
         try:
             page = await self.browser.newPage()
             await page.goto((process.html).as_uri())
@@ -210,7 +215,7 @@ class Telminal:
             image = picture_name
             await page.close()
 
-        except Exception as e:
+        except Exception:
             output = process.media_output
             image = None
 
@@ -335,15 +340,23 @@ class Telminal:
             reply_to=process.response_id,
         )
 
+    def set_interactive_process(self, process):
+        self.interactive_process = process
+        process.is_interactive_process = True
+        return f"You are talking to PID {process.pid}"
+
+    def reset_interactive_process(self):
+        self.interactive_process.is_interactive_process = False
+        self.interactive_process = None
+        return "Normal mode activated"
+
     @check_permission
     async def interactive_handler(self, event):
         process = self.find_process_by_event(event)
         if self.interactive_process is process:
-            self.interactive_process = None
-            answer = "Normal mode activated"
+            answer = self.reset_interactive_process()
         else:
-            answer = f"You are talking to PID {process.pid}"
-            self.interactive_process = process
+            answer = self.set_interactive_process(process)
 
         await event.answer(answer, alert=True)
         await self.response(process, event.chat_id)
@@ -419,16 +432,14 @@ class Telminal:
 
     async def response(self, process: TProcess, chat_id: int):
         media_output = process.media_output
-        new_buttons = process.update_buttons(self.interactive_process)
-        # for a button update request, content dosen't matter anymore
-        if new_buttons is False:
-            # there is no output for commands like `touch`
-            # telegram api raise an error for no changes edit
-            if not media_output or process.last_message == media_output:
-                return
+        # update buttons must be once per response
+        process.update_buttons()
+
+        if not process.has_new_state(media_output):
+            return
 
         output, image = await self.render_xtermjs(process)
-        if new_buttons is False and (not output or process.last_message == output):
+        if not process.has_new_state(output):
             return
 
         if process.is_partial:
@@ -473,7 +484,7 @@ class Telminal:
             await self.response(process, chat_id)
         finally:
             if self.interactive_process is process:
-                self.interactive_process = None
+                self.reset_interactive_process()
 
     @staticmethod
     def find_process_by_event(event) -> TProcess:
