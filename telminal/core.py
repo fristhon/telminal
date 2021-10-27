@@ -117,6 +117,7 @@ class TProcess:
                 interact_switch_text = "Exit interactive mode"
 
             buttons = [
+                [Button.inline("Enter", data=f"enter&{self.pid}")],
                 [Button.inline("Terminate", data=f"terminate&{self.pid}")],
                 [Button.inline(interact_switch_text, data=f"interact&{self.pid}")],
                 [Button.inline("HTML", data=f"html&{self.pid}")],
@@ -214,6 +215,7 @@ class Telminal:
             self._confirm_download_handler: events.CallbackQuery(
                 pattern=r"savefile&.+"
             ),
+            self._enter_handler: events.CallbackQuery(pattern=r"enter&\d+"),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
@@ -242,6 +244,11 @@ class Telminal:
         process = TProcess(command, request_id)
         process.run()
         return process
+
+    async def _enter_handler(self, event):
+        process = self._find_process_by_event(event)
+        process.push("^m")
+        await event.answer("Enter pressed...")
 
     async def _special_commands_handler(self, command: str, event):
         param = command.split(" ", 1)[-1]
