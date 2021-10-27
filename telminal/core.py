@@ -117,10 +117,17 @@ class Telminal:
     all_progress_callback = {}
 
     def __init__(
-        self, *, api_id: int, api_hash: str, token: str, session_name: str = "telminal"
+        self,
+        *,
+        api_id: int,
+        api_hash: str,
+        token: str,
+        admins: list,
+        session_name: str = "telminal",
     ) -> None:
         self.interactive_process = None
         self.bot = Telegram(api_id, api_hash, token, session_name)
+        self.admins = admins
 
     @classmethod
     async def process_cleaner(cls):
@@ -132,12 +139,22 @@ class Telminal:
                     utils.silent_file_remover(f"{pid}.html")
             await asyncio.sleep(100)
 
+    def check_permission(func):
+        async def inner(self, event):
+            if event.sender_id not in self.admins:
+                return
+            await func(self, event)
+
+        return inner
+
     async def start(self):
         # TODO bad coupling
         from telethon import events
 
         handlers = {
-            self.all_messages_handler: events.NewMessage(incoming=True),
+            self.all_messages_handler: events.NewMessage(
+                incoming=True, from_users=self.admins
+            ),
             self.terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
             self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
             self.interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
@@ -153,31 +170,39 @@ class Telminal:
         process.run()
         return process
 
-    async def special_commands_handler(self, command: str, request_id: int):
+    async def special_commands_handler(self, command: str, event):
         param = command.split(" ", 1)[-1]
+        chat_id, request_id = event.chat_id, event.message.id
         if command.startswith("!get"):
             message = await self.bot.send_message(
-                "Uploading started...", reply_to=request_id
+                chat_id, "Uploading started...", reply_to=request_id
             )
             partial_callback = partial(
                 self.progress_callback,
+                chat_id=event.chat_id,
                 message_id=message.id,
                 title=f"Uploading `{param}`",
             )
             await self.bot.send_file(
-                file=param, reply_to=request_id, progress_callback=partial_callback
+                chat_id,
+                file=param,
+                reply_to=request_id,
+                progress_callback=partial_callback,
             )
         elif command.startswith("cd"):
             try:
                 os.chdir(param)
             except FileNotFoundError:
                 await self.bot.send_message(
-                    f"cd: {param}: No such file or directory", reply_to=request_id
+                    chat_id,
+                    f"cd: {param}: No such file or directory",
+                    reply_to=request_id,
                 )
 
-    async def send_download_buttons(self, message_id: int, file_name: str):
+    async def send_download_buttons(self, event):
         from telethon import Button
 
+        message_id, file_name = event.id, event.file.name
         buttons = []
         if os.path.exists(file_name):
             message = f"`{file_name}` currentlly exists on this directory"
@@ -198,24 +223,24 @@ class Telminal:
         buttons.append([Button.inline("Cancell", data="removeme")])
 
         await self.bot.send_message(
+            event.chat_id,
             message,
             reply_to=message_id,
             buttons=buttons,
         )
 
     async def all_messages_handler(self, event):
-        self.bot.chat_id = event.chat_id  # TODO
         command: str = event.message.message
 
         if event.file:
-            await self.send_download_buttons(event.id, event.file.name)
+            await self.send_download_buttons(event)
 
         elif (
             self.interactive_process is None
             and command.startswith("!")
             or command.split()[0] == "cd"
         ):
-            await self.special_commands_handler(command, event.message.id)
+            await self.special_commands_handler(command, event)
 
         elif self.interactive_process:
             self.interactive_process.push(command)
@@ -226,30 +251,34 @@ class Telminal:
                 int(time()) - self.interactive_process.last_update_time >= 2
             )
             if self.interactive_process is not None and next_update_arrived:
-                await self.response(self.interactive_process)
+                await self.response(self.interactive_process, event.chat_id)
         else:
             process = self.new_process(command, event.message.id)
             # TODO better?
             Telminal.all_process[process.pid] = process
 
-            asyncio.shield(self.run_in_background(process))
+            asyncio.shield(self.run_in_background(process, event.chat_id))
 
+    @check_permission
     async def terminate_handler(self, event):
         process = Telminal.find_process_by_event(event)
         process.terminate()
 
+    @check_permission
     async def html_handler(self, event):
         process = Telminal.find_process_by_event(event)
         if process is None:
             await event.answer("this process not exist anymore", alert=True)
             # clear button
-            await self.bot.edit_message(message_id=event.message_id)
+            await self.bot.edit_message(event.chat_id, message_id=event.message_id)
             return
         await self.bot.send_file(
+            event.chat_id,
             utils.make_html(process.pid, process.command, process.full_output),
             reply_to=process.response_id,
         )
 
+    @check_permission
     async def interactive_handler(self, event):
         process = self.find_process_by_event(event)
         if self.interactive_process is process:
@@ -260,8 +289,9 @@ class Telminal:
             self.interactive_process = process
 
         await event.answer(answer, alert=True)
-        await self.response(process)
+        await self.response(process, event.chat_id)
 
+    @check_permission
     async def inline_query_handler(self, event):
         command = "ls -la" if not event.text else f"ls -la | grep {event.text}"
         process = await asyncio.subprocess.create_subprocess_shell(
@@ -284,7 +314,9 @@ class Telminal:
                 )
         await event.answer(results=results, cache_time=0)
 
-    async def progress_callback(self, current, total, *, message_id: int, title: str):
+    async def progress_callback(
+        self, current, total, *, chat_id: int, message_id: int, title: str
+    ):
         percent_str = f"{current / total:.2%}"
         percent_int = int(percent_str.split(".")[0])
         upload_finished = percent_int == 100
@@ -305,14 +337,16 @@ class Telminal:
             int(time() - self.all_progress_callback.get(message_id, 0)) > 5
             or upload_finished
         ):
-            await self.bot.edit_message(message_id=message_id, message=text)
+            await self.bot.edit_message(chat_id, message_id=message_id, message=text)
             self.all_progress_callback[message_id] = time()
 
+    @check_permission
     async def confirm_download_handler(self, event):
         _, overwrite, message_id = event.data.decode().split("&")
-        message = await self.bot.get_message(int(message_id))
+        message = await self.bot.get_message(event.chat_id, int(message_id))
         partial_callback = partial(
             self.progress_callback,
+            chat_id=event.chat_id,
             message_id=event.message_id,
             title="Downloading started...",
         )
@@ -322,10 +356,11 @@ class Telminal:
             message, progress_callback=partial_callback, file=file
         )
 
+    @check_permission
     async def cancell_download_handler(self, event):
         await event.delete()
 
-    async def response(self, process: TProcess):
+    async def response(self, process: TProcess, chat_id: int):
         result = process.full_output
         # handle telegram caption limit
         if len(result) >= Telegram.MEDIA_CAPTION_LIMIT:
@@ -341,18 +376,24 @@ class Telminal:
 
         if process.is_partial:
             await self.bot.edit_message(
-                message=result, message_id=process.response_id, buttons=process.buttons
+                chat_id,
+                message=result,
+                message_id=process.response_id,
+                buttons=process.buttons,
             )
         else:
             process.response_id = (
                 await self.bot.send_message(
-                    result, reply_to=process.request_id, buttons=process.buttons
+                    chat_id,
+                    result,
+                    reply_to=process.request_id,
+                    buttons=process.buttons,
                 )
             ).id
             process.is_partial = True
         process.last_message = result
 
-    async def run_in_background(self, process: TProcess):
+    async def run_in_background(self, process: TProcess, chat_id: int):
         while process.is_running:
             partial_update_time = (process.run_time + 1) % 4 == 0
             try:
@@ -361,7 +402,7 @@ class Telminal:
                     # for a partial update must passed at least 1 second
                     response_delay = 0.5 if process.response_id is None else 1.1
                     await asyncio.sleep(response_delay)
-                    await self.response(process)
+                    await self.response(process, chat_id)
             except Exception:
                 # TODO should I reaction to this?
                 pass
@@ -370,7 +411,7 @@ class Telminal:
 
         try:
             # maybe process will be finished before next update
-            await self.response(process)
+            await self.response(process, chat_id)
         finally:
             if self.interactive_process is process:
                 self.interactive_process = None

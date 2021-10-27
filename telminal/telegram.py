@@ -32,25 +32,31 @@ class Telegram:
             self._client.add_event_handler(handler, type_)
         await self._client.run_until_disconnected()
 
-    async def send_message(self, message: str, *, reply_to: int = None, buttons=None):
+    async def send_message(
+        self, chat_id: int, message: str, *, reply_to: int = None, buttons=None
+    ):
         return await self._client.send_message(
-            self.chat_id,
+            chat_id,
             message,
             link_preview=False,
             reply_to=reply_to,
             buttons=buttons,
         )
 
-    async def edit_message(self, *, message_id: int, message=None, buttons=None):
+    async def edit_message(
+        self, chat_id, *, message_id: int, message=None, buttons=None
+    ):
         return await self._client.edit_message(
-            self.chat_id,
+            chat_id,
             message=message_id,
             text=message,
             link_preview=False,
             buttons=buttons,
         )
 
-    async def send_file(self, file, reply_to=None, progress_callback=None):
+    async def send_file(
+        self, chat_id: int, file: str, reply_to=None, progress_callback=None
+    ):
         error = None
         if not os.path.isfile(file):
             error = f"{file} is not a file"
@@ -58,20 +64,18 @@ class Telegram:
             error = "Sorry I can't send file bigger than 2G"
 
         if error is not None:
-            return await self._client.send_message(
-                self.chat_id, error, reply_to=reply_to
-            )
+            return await self._client.send_message(chat_id, error, reply_to=reply_to)
 
         return await self._client.send_file(
-            self.chat_id,
+            chat_id,
             file=file,
             force_document=True,
             reply_to=reply_to,
             progress_callback=progress_callback,
         )
 
-    async def get_message(self, message_id: int):
-        return await self._client.get_messages(self.chat_id, ids=message_id)
+    async def get_message(self, chat_id, message_id: int):
+        return await self._client.get_messages(chat_id, ids=message_id)
 
     async def download_media(self, message, *, progress_callback, file):
         await self._client.download_media(
