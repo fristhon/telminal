@@ -271,7 +271,7 @@ class Telminal:
 
         builder = event.builder
         results = []
-        file_name_pattern = re.compile(r"(.+)\s\d{2}:\d{2}")
+        file_name_pattern = re.compile(r"(.+)\s\d{2}:*\d{2}\s")
         for file in files:
             # means this is a file and not a directory
             if file.startswith("-"):
