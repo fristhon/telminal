@@ -2,22 +2,17 @@ import contextlib
 import os
 
 # inspired from https://github.com/cs01/pyxtermjs/blob/master/pyxtermjs/index.html
-HMTL_TEMPLATE = """<html lang="en">
+HMTL_TEMPLATE = """<html>
   <head>
     <meta charset="utf-8" />
     <title>{title}</title>
-    <style>
-      html {{
-        font-family: arial;
-      }}
-    </style>
     <link
       rel="stylesheet"
       href="https://unpkg.com/xterm@4.11.0/css/xterm.css"
     />
   </head>
   <body>
-    <div style="width: 100%; height: calc(100% - 50px)" id="terminal"></div>
+    <div style="width: 100%; height: 100%" id="terminal"></div>
     <!-- xterm -->
     <script src="https://unpkg.com/xterm@4.11.0/lib/xterm.js"></script>
     <script src="https://unpkg.com/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
@@ -32,8 +27,6 @@ HMTL_TEMPLATE = """<html lang="en">
 
     const fit = new FitAddon.FitAddon();
       term.loadAddon(fit);
-      term.loadAddon(new WebLinksAddon.WebLinksAddon());
-      term.loadAddon(new SearchAddon.SearchAddon());
 
       term.open(document.getElementById("terminal"));
       fit.fit();
@@ -45,16 +38,6 @@ HMTL_TEMPLATE = """<html lang="en">
        function fitToscreen() {{
         fit.fit();
       }}
-
-      function debounce(func, wait_ms) {{
-        let timeout;
-        return function (...args) {{
-          const context = this;
-          clearTimeout(timeout);
-          timeout = setTimeout(() => func.apply(context, args), wait_ms);
-        }};
-      }}
-
 
 </script>
   </body>
