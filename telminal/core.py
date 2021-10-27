@@ -132,8 +132,8 @@ class TProcess:
             return True
         return False
 
-    def has_new_state(self, new_output):
-        return self.new_buttons or (new_output and self.last_message != new_output)
+    def has_new_state(self, new_buttons, new_output):
+        return new_buttons or (new_output and self.last_message != new_output)
 
 
 class Telminal:
@@ -433,13 +433,13 @@ class Telminal:
     async def response(self, process: TProcess, chat_id: int):
         media_output = process.media_output
         # update buttons must be once per response
-        process.update_buttons()
+        new_buttons = process.update_buttons()
 
-        if not process.has_new_state(media_output):
+        if not process.has_new_state(new_buttons, media_output):
             return
 
         output, image = await self.render_xtermjs(process)
-        if not process.has_new_state(output):
+        if not process.has_new_state(new_buttons, output):
             return
 
         if process.is_partial:
