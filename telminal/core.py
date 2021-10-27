@@ -10,7 +10,6 @@ from time import time
 import pexpect
 from pexpect.exceptions import EOF
 from pexpect.exceptions import TIMEOUT
-from pyppeteer import launch
 
 from . import utils
 from .telegram import Telegram
@@ -178,22 +177,29 @@ class Telminal:
 
         return inner
 
+    async def setup_browser(self):
+        from pyppeteer import launch
+
+        try:
+            self.browser = await launch(
+                options={
+                    "args": [
+                        "--disable-gpu  ",
+                        "--disable-dev-shm-usage",
+                        "--disable-setuid-sandbox",
+                        "--no-sandbox",
+                    ],
+                    "headless": True,
+                    "autoClose": False,
+                }
+            )
+        except Exception:
+            self.browser = None
+
     async def start(self):
         """Run telminal instance by calling this method"""
 
-        self.browser = await launch(
-            options={
-                "args": [
-                    "--disable-gpu  ",
-                    "--disable-dev-shm-usage",
-                    "--disable-setuid-sandbox",
-                    "--no-sandbox",
-                ],
-                "headless": True,
-                "autoClose": False,
-            }
-        )
-
+        await self.setup_browser()
         from telethon import events
 
         handlers = {
