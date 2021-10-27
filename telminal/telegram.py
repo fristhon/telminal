@@ -20,6 +20,7 @@ class Telegram:
         self.session_name = session_name
         self._remove_old_sessions()
         self._client = TelegramClient(session_name, api_id, api_hash)
+        self._client.parse_mode = None
 
     def _remove_old_sessions(self) -> None:
         # an easy way to handle session db lock error
@@ -33,7 +34,13 @@ class Telegram:
         await self._client.run_until_disconnected()
 
     async def send_message(
-        self, chat_id: int, message: str, *, reply_to: int = None, buttons=None
+        self,
+        chat_id: int,
+        message: str,
+        *,
+        reply_to: int = None,
+        buttons=None,
+        file=None,
     ):
         return await self._client.send_message(
             chat_id,
@@ -41,10 +48,11 @@ class Telegram:
             link_preview=False,
             reply_to=reply_to,
             buttons=buttons,
+            file=file,
         )
 
     async def edit_message(
-        self, chat_id, *, message_id: int, message=None, buttons=None
+        self, chat_id, *, message_id: int, message=None, buttons=None, file=None
     ):
         return await self._client.edit_message(
             chat_id,
@@ -52,6 +60,7 @@ class Telegram:
             text=message,
             link_preview=False,
             buttons=buttons,
+            file=file,
         )
 
     async def send_file(
@@ -81,3 +90,9 @@ class Telegram:
         await self._client.download_media(
             message, progress_callback=progress_callback, file=file
         )
+
+    @staticmethod
+    def media_strip(message: str):
+        if len(message) >= Telegram.MEDIA_CAPTION_LIMIT:
+            message = message[len(message) - Telegram.MEDIA_CAPTION_LIMIT :]
+        return message.strip()

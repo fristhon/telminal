@@ -1,9 +1,5 @@
 import contextlib
 import os
-from pathlib import Path
-
-path = Path()
-CWD = path.cwd()
 
 # inspired from https://github.com/cs01/pyxtermjs/blob/master/pyxtermjs/index.html
 HMTL_TEMPLATE = """<html lang="en">
@@ -64,13 +60,6 @@ HMTL_TEMPLATE = """<html lang="en">
   </body>
 </html>
 """
-
-
-def make_html(pid, title, data):
-    file = CWD / f"{pid}.html"
-    with open(file, "w", encoding="utf-8") as html:
-        html.write(HMTL_TEMPLATE.format(title=f"{pid} -> {title}", data=data))
-    return file
 
 
 def silent_file_remover(file):

@@ -3,15 +3,20 @@ import os
 import re
 from functools import partial
 from io import StringIO
+from pathlib import Path
 from subprocess import PIPE
 from time import time
 
 import pexpect
 from pexpect.exceptions import EOF
 from pexpect.exceptions import TIMEOUT
+from pyppeteer import launch
 
 from . import utils
 from .telegram import Telegram
+
+path = Path()
+CWD = path.cwd()
 
 
 class TProcess:
@@ -62,6 +67,21 @@ class TProcess:
     def full_output(self) -> str:
         self._buffer.seek(0)
         return self._buffer.read()
+
+    @property
+    def media_output(self) -> str:
+        return Telegram.media_strip(self.full_output)
+
+    @property
+    def html(self):
+        file = CWD / f"{self.pid}.html"
+        with open(file, "w", encoding="utf-8") as html:
+            html.write(
+                utils.HMTL_TEMPLATE.format(
+                    title=f"{self.pid} -> {self.command}", data=self.full_output
+                )
+            )
+        return file
 
     @property
     def last_message(self):
@@ -148,7 +168,19 @@ class Telminal:
         return inner
 
     async def start(self):
-        # TODO bad coupling
+        self.browser = await launch(
+            options={
+                "args": [
+                    "--disable-gpu  ",
+                    "--disable-dev-shm-usage",
+                    "--disable-setuid-sandbox",
+                    "--no-sandbox",
+                ],
+                "headless": True,
+                "autoClose": False,
+            }
+        )
+
         from telethon import events
 
         handlers = {
@@ -164,6 +196,25 @@ class Telminal:
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
+
+    async def render_xtermjs(self, process):
+        try:
+            page = await self.browser.newPage()
+            await page.goto((process.html).as_uri())
+            picture_name = f"{process.pid}.png"
+            await page.screenshot({"path": picture_name, "fullPage": True})
+
+            await page.evaluate("term.selectAll()")
+            output = await page.evaluate("term.getSelection()")
+            output = Telegram.media_strip(output)
+            image = picture_name
+            await page.close()
+
+        except Exception as e:
+            output = process.media_output
+            image = None
+
+        return output, image
 
     def new_process(self, command: str, request_id: int) -> TProcess:
         process = TProcess(command, request_id)
@@ -280,7 +331,7 @@ class Telminal:
             return
         await self.bot.send_file(
             event.chat_id,
-            utils.make_html(process.pid, process.command, process.full_output),
+            process.html,
             reply_to=process.response_id,
         )
 
@@ -367,37 +418,39 @@ class Telminal:
         await event.delete()
 
     async def response(self, process: TProcess, chat_id: int):
-        result = process.full_output
-        # handle telegram caption limit
-        if len(result) >= Telegram.MEDIA_CAPTION_LIMIT:
-            result = result[len(result) - Telegram.MEDIA_CAPTION_LIMIT :]
-
+        media_output = process.media_output
         new_buttons = process.update_buttons(self.interactive_process)
         # for a button update request, content dosen't matter anymore
         if new_buttons is False:
             # there is no output for commands like `touch`
             # telegram api raise an error for no changes edit
-            if not result or process.last_message == result:
+            if not media_output or process.last_message == media_output:
                 return
+
+        output, image = await self.render_xtermjs(process)
+        if new_buttons is False and (not output or process.last_message == output):
+            return
 
         if process.is_partial:
             await self.bot.edit_message(
                 chat_id,
-                message=result,
+                message=output,
                 message_id=process.response_id,
                 buttons=process.buttons,
+                file=image,
             )
         else:
             process.response_id = (
                 await self.bot.send_message(
                     chat_id,
-                    result,
+                    output,
                     reply_to=process.request_id,
                     buttons=process.buttons,
+                    file=image,
                 )
             ).id
             process.is_partial = True
-        process.last_message = result
+        process.last_message = output
 
     async def run_in_background(self, process: TProcess, chat_id: int):
         while process.is_running:
