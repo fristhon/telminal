@@ -137,8 +137,11 @@ class TProcess:
 
 
 class Telminal:
-    all_process = {}
+    all_processes = {}
     all_progress_callback = {}
+
+    PROCESS_CLEANER_DELAY = 100
+    PROCESS_OUTPUT_LIFE_TIME = 60
 
     def __init__(
         self,
@@ -155,14 +158,17 @@ class Telminal:
 
     @classmethod
     async def process_cleaner(cls):
+        """Check and clean dead processes periodically"""
         while True:
-            for pid, process in cls.all_process.copy().items():
-                # TODO configable or constant variables
-                if not process.is_running and int(time() - process.done_time) > 60:
-                    del cls.all_process[pid]
+            for pid, process in cls.all_processes.copy().items():
+                if (
+                    not process.is_running
+                    and int(time() - process.done_time) > cls.PROCESS_OUTPUT_LIFE_TIME
+                ):
+                    del cls.all_processes[pid]
                     utils.silent_file_remover(f"{pid}.html")
                     utils.silent_file_remover(f"{pid}.png")
-            await asyncio.sleep(100)
+            await asyncio.sleep(cls.PROCESS_CLEANER_DELAY)
 
     def check_permission(func):
         async def inner(self, event):
@@ -173,6 +179,8 @@ class Telminal:
         return inner
 
     async def start(self):
+        """Run telminal instance by calling this method"""
+
         self.browser = await launch(
             options={
                 "args": [
@@ -189,21 +197,23 @@ class Telminal:
         from telethon import events
 
         handlers = {
-            self.all_messages_handler: events.NewMessage(
+            self._all_messages_handler: events.NewMessage(
                 incoming=True, from_users=self.admins
             ),
-            self.terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
-            self.html_handler: events.CallbackQuery(pattern=r"html&\d+"),
-            self.interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
-            self.inline_query_handler: events.InlineQuery(),
-            self.cancell_download_handler: events.CallbackQuery(pattern=r"removeme"),
-            self.confirm_download_handler: events.CallbackQuery(pattern=r"savefile&.+"),
+            self._terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
+            self._html_handler: events.CallbackQuery(pattern=r"html&\d+"),
+            self._interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
+            self._inline_query_handler: events.InlineQuery(),
+            self._cancell_download_handler: events.CallbackQuery(pattern=r"removeme"),
+            self._confirm_download_handler: events.CallbackQuery(
+                pattern=r"savefile&.+"
+            ),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
 
-    async def render_xtermjs(self, process):
-        """returns xtermjs output as parsed text and screenshot"""
+    async def render_xtermjs(self, process: TProcess):
+        """Returns parsed output and screenshot of a process"""
         try:
             page = await self.browser.newPage()
             await page.goto((process.html).as_uri())
@@ -222,12 +232,12 @@ class Telminal:
 
         return output, image
 
-    def new_process(self, command: str, request_id: int) -> TProcess:
+    def _new_process(self, command: str, request_id: int) -> TProcess:
         process = TProcess(command, request_id)
         process.run()
         return process
 
-    async def special_commands_handler(self, command: str, event):
+    async def _special_commands_handler(self, command: str, event):
         param = command.split(" ", 1)[-1]
         chat_id, request_id = event.chat_id, event.message.id
         if command.startswith("!get"):
@@ -241,7 +251,7 @@ class Telminal:
                 chat_id, "Uploading started...", reply_to=request_id
             )
             partial_callback = partial(
-                self.progress_callback,
+                self._progress_callback,
                 chat_id=event.chat_id,
                 message_id=message.id,
                 title=f"Uploading `{param}`",
@@ -262,7 +272,7 @@ class Telminal:
                     reply_to=request_id,
                 )
 
-    async def send_download_buttons(self, event):
+    async def _send_download_buttons(self, event):
         from telethon import Button
 
         message_id, file_name = event.id, event.file.name
@@ -292,18 +302,18 @@ class Telminal:
             buttons=buttons,
         )
 
-    async def all_messages_handler(self, event):
+    async def _all_messages_handler(self, event):
         command: str = event.message.message
 
         if event.file:
-            await self.send_download_buttons(event)
+            await self._send_download_buttons(event)
 
         elif (
             self.interactive_process is None
             and command.startswith("!")
             or command.split()[0] == "cd"
         ):
-            await self.special_commands_handler(command, event)
+            await self._special_commands_handler(command, event)
 
         elif self.interactive_process:
             self.interactive_process.push(command)
@@ -316,20 +326,20 @@ class Telminal:
             if self.interactive_process is not None and next_update_arrived:
                 await self.response(self.interactive_process, event.chat_id)
         else:
-            process = self.new_process(command, event.message.id)
+            process = self._new_process(command, event.message.id)
             # TODO better?
-            Telminal.all_process[process.pid] = process
+            Telminal.all_processes[process.pid] = process
 
-            asyncio.shield(self.run_in_background(process, event.chat_id))
+            asyncio.shield(self._run_in_background(process, event.chat_id))
 
     @check_permission
-    async def terminate_handler(self, event):
-        process = Telminal.find_process_by_event(event)
+    async def _terminate_handler(self, event):
+        process = Telminal._find_process_by_event(event)
         process.terminate()
 
     @check_permission
-    async def html_handler(self, event):
-        process = Telminal.find_process_by_event(event)
+    async def _html_handler(self, event):
+        process = Telminal._find_process_by_event(event)
         if process is None:
             await event.answer("this process not exist anymore", alert=True)
             # clear button
@@ -352,8 +362,8 @@ class Telminal:
         return "Normal mode activated"
 
     @check_permission
-    async def interactive_handler(self, event):
-        process = self.find_process_by_event(event)
+    async def _interactive_handler(self, event):
+        process = self._find_process_by_event(event)
         if self.interactive_process is process:
             answer = self.reset_interactive_process()
         else:
@@ -363,7 +373,7 @@ class Telminal:
         await self.response(process, event.chat_id)
 
     @check_permission
-    async def inline_query_handler(self, event):
+    async def _inline_query_handler(self, event):
         command = "ls -la" if not event.text else f"ls -la | grep {event.text}"
         process = await asyncio.subprocess.create_subprocess_shell(
             command, stdin=PIPE, stdout=PIPE, stderr=PIPE
@@ -385,7 +395,7 @@ class Telminal:
                 )
         await event.answer(results=results, cache_time=0)
 
-    async def progress_callback(
+    async def _progress_callback(
         self, current, total, *, chat_id: int, message_id: int, title: str
     ):
         percent_str = f"{current / total:.2%}"
@@ -412,14 +422,14 @@ class Telminal:
             self.all_progress_callback[message_id] = time()
 
     @check_permission
-    async def confirm_download_handler(self, event):
+    async def _confirm_download_handler(self, event):
         _, overwrite, message_id = event.data.decode().split("&")
         message = await self.bot.get_message(event.chat_id, int(message_id))
         partial_callback = partial(
-            self.progress_callback,
+            self._progress_callback,
             chat_id=event.chat_id,
             message_id=event.message_id,
-            title="Downloading started...",
+            title="Downloading...",
         )
 
         file = message.file.name if overwrite == "true" else None
@@ -428,10 +438,11 @@ class Telminal:
         )
 
     @check_permission
-    async def cancell_download_handler(self, event):
+    async def _cancell_download_handler(self, event):
         await event.delete()
 
     async def response(self, process: TProcess, chat_id: int):
+        """Response to user and update process result message periodically"""
         media_output = process.media_output
         # update buttons must be once per response
         new_buttons = process.update_buttons()
@@ -464,7 +475,7 @@ class Telminal:
             process.is_partial = True
         process.last_message = output
 
-    async def run_in_background(self, process: TProcess, chat_id: int):
+    async def _run_in_background(self, process: TProcess, chat_id: int):
         while process.is_running:
             partial_update_time = (process.run_time + 1) % 4 == 0
             try:
@@ -488,6 +499,6 @@ class Telminal:
                 self.reset_interactive_process()
 
     @staticmethod
-    def find_process_by_event(event) -> TProcess:
+    def _find_process_by_event(event) -> TProcess:
         pid = int(event.data.decode().split("&")[-1])
-        return Telminal.all_process.get(pid)
+        return Telminal.all_processes.get(pid)
