@@ -13,6 +13,9 @@ from pexpect.exceptions import TIMEOUT
 
 from . import utils
 from .telegram import Telegram
+from telminal.values import ACTIVE_TASKS_MSG
+from telminal.values import BROWSER_ERROR_MSG
+from telminal.values import EMPTY_TASKS_MSG
 
 path = Path()
 CWD = path.cwd()
@@ -144,15 +147,6 @@ class Telminal:
     PROCESS_CLEANER_DELAY = 100
     PROCESS_OUTPUT_LIFE_TIME = 60
 
-    BROWSER_ERROR_MSG = """\
-Browser setup error : {error}
-
-`sudo apt-get install chromium-chromedriver` <i>maybe solve the problem</i>"
-Fix the error and after that send me <code>!setup_browser</code>
-
-<b>Meanwhile You can use text version of Telminal, type any command!</b>
-"""
-
     def __init__(
         self,
         *,
@@ -166,6 +160,7 @@ Fix the error and after that send me <code>!setup_browser</code>
         self.bot = Telegram(api_id, api_hash, token, session_name)
         self.admins = admins
         self._render = True
+        self._watch_tasks = {}
 
     @classmethod
     async def process_cleaner(cls):
@@ -208,7 +203,7 @@ Fix the error and after that send me <code>!setup_browser</code>
         except Exception as e:
             await self.bot.send_message(
                 self.admins[0],
-                Telminal.BROWSER_ERROR_MSG.format(error=e),
+                BROWSER_ERROR_MSG.format(error=e),
                 parse_mode="html",
             )
             self.browser = None
@@ -231,6 +226,9 @@ Fix the error and after that send me <code>!setup_browser</code>
                 pattern=r"savefile&.+"
             ),
             self._enter_handler: events.CallbackQuery(pattern=r"enter&\d+"),
+            self._cancell_task_handler: events.CallbackQuery(
+                pattern=r"cancell_task&\d+"
+            ),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
@@ -274,6 +272,65 @@ Fix the error and after that send me <code>!setup_browser</code>
         process.push("^m")
         await event.answer("Enter pressed...")
 
+    async def _new_watcher(self, chat_id, request_id, task_id, command):
+        self._watch_tasks[task_id] = command.replace("!watch", "")
+        match = re.match(r"!watch\s(\d+)([s,m,h])\s(.+)", command)
+        if not match:
+            await self.bot.send_message(
+                chat_id,
+                "Wrong pattern, send /tasks to see valid examples",
+                reply_to=request_id,
+            )
+            return
+
+        count, type_, file = match.groups()
+        second_mapping = {
+            "s": 1,
+            "m": 60,
+            "h": 60 * 60,
+        }
+        while True:
+            if self._watch_tasks.get(task_id) is None:
+                break
+            await self.bot.send_file(chat_id, file, reply_to=request_id)
+            delay = int(count) * second_mapping[type_]
+            await asyncio.sleep(delay)
+
+    async def _show_tasks_handler(self, chat_id):
+        message, buttons = self._get_tasks_message()
+        await self.bot.send_message(
+            chat_id, message, buttons=buttons, parse_mode="html"
+        )
+
+    def _get_tasks_message(self):
+        from telethon import Button
+
+        buttons = [
+            [Button.inline(f"❌ {command}", f"cancell_task&{task_id}")]
+            for task_id, command in self._watch_tasks.items()
+        ]
+        message = ACTIVE_TASKS_MSG
+        if not buttons:
+            buttons = None
+            message = EMPTY_TASKS_MSG
+
+        return message, buttons
+
+    async def _cancell_task_handler(self, event):
+        task_id = int(event.data.decode().split("&")[-1])
+        try:
+            del self._watch_tasks[task_id]
+        except KeyError:
+            await event.answer("Dead task! create new one")
+        message, buttons = self._get_tasks_message()
+        await self.bot.edit_message(
+            event.chat_id,
+            message_id=event.message_id,
+            message=message,
+            buttons=buttons,
+            parse_mode="html",
+        )
+
     async def _special_commands_handler(self, command: str, event):
         param = command.split(" ", 1)[-1]
         chat_id, request_id = event.chat_id, event.message.id
@@ -315,6 +372,14 @@ Fix the error and after that send me <code>!setup_browser</code>
             self._render = True
         elif command == "/image_off":
             self._render = False
+
+        elif command.startswith("!watch"):
+            asyncio.shield(
+                self._new_watcher(chat_id, request_id, event.message.id, command)
+            )
+
+        elif command == "/tasks":
+            await self._show_tasks_handler(chat_id)
 
     async def _send_download_buttons(self, event):
         from telethon import Button

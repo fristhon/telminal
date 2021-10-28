@@ -57,7 +57,14 @@ class Telegram:
         )
 
     async def edit_message(
-        self, chat_id, *, message_id: int, message=None, buttons=None, file=None
+        self,
+        chat_id,
+        *,
+        message_id: int,
+        message=None,
+        buttons=None,
+        file=None,
+        parse_mode=None,
     ):
         return await self._client.edit_message(
             chat_id,
@@ -66,6 +73,7 @@ class Telegram:
             link_preview=False,
             buttons=buttons,
             file=file,
+            parse_mode=parse_mode,
         )
 
     async def send_file(
@@ -76,6 +84,11 @@ class Telegram:
             error = f"{file} is not a file"
         elif os.path.getsize(file) > Telegram.UPLOAD_LIMIT:
             error = "Sorry I can't send file bigger than 2G"
+        elif os.path.getsize(file) == 0:
+            error = "I can't send an empty file"
+
+        if error is not None:
+            await self._client.send_message(chat_id, error, reply_to=reply_to)
 
         try:
             return await self._client.send_file(
@@ -85,11 +98,9 @@ class Telegram:
                 reply_to=reply_to,
                 progress_callback=progress_callback,
             )
-        except FilePartsInvalidError:
-            error = "I can't send an empty file"
-
-        if error is not None:
-            return await self._client.send_message(chat_id, error, reply_to=reply_to)
+        except Exception:
+            # TODO log
+            pass
 
     async def get_message(self, chat_id, message_id: int):
         return await self._client.get_messages(chat_id, ids=message_id)
