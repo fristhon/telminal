@@ -1,7 +1,7 @@
 import os
 
 from telethon import TelegramClient
-from telethon.hints import ProgressCallback
+from telethon.errors import FilePartsInvalidError
 
 from . import utils
 
@@ -77,16 +77,19 @@ class Telegram:
         elif os.path.getsize(file) > Telegram.UPLOAD_LIMIT:
             error = "Sorry I can't send file bigger than 2G"
 
+        try:
+            return await self._client.send_file(
+                chat_id,
+                file=file,
+                force_document=True,
+                reply_to=reply_to,
+                progress_callback=progress_callback,
+            )
+        except FilePartsInvalidError:
+            error = "I can't send an empty file"
+
         if error is not None:
             return await self._client.send_message(chat_id, error, reply_to=reply_to)
-
-        return await self._client.send_file(
-            chat_id,
-            file=file,
-            force_document=True,
-            reply_to=reply_to,
-            progress_callback=progress_callback,
-        )
 
     async def get_message(self, chat_id, message_id: int):
         return await self._client.get_messages(chat_id, ids=message_id)
