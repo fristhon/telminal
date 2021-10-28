@@ -498,6 +498,12 @@ Fix the error and after that send me <code>!setup_browser</code>
             return
 
         if process.is_partial:
+            if not any(output.split("\n")):
+                # sometimes when process finished whit a kill signal
+                # the final output is an empty line and in telegram
+                # we can't send an empty message
+                # but buttons update must apply to message
+                output = None
             await self.bot.edit_message(
                 chat_id,
                 message=output,
