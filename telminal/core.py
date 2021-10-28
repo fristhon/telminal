@@ -143,6 +143,15 @@ class Telminal:
     PROCESS_CLEANER_DELAY = 100
     PROCESS_OUTPUT_LIFE_TIME = 60
 
+    BROWSER_ERROR_MSG = """\
+Browser setup error : {error}
+
+`sudo apt-get install chromium-chromedriver` <i>maybe solve the problem</i>"
+Fix the error and after that send me <code>!setup_browser</code>
+
+<b>Meanwhile You can use text version of Telminal, type any command!</b>
+"""
+
     def __init__(
         self,
         *,
@@ -194,13 +203,17 @@ class Telminal:
                     "autoClose": False,
                 }
             )
-        except Exception:
+        except Exception as e:
+            await self.bot.send_message(
+                self.admins[0],
+                Telminal.BROWSER_ERROR_MSG.format(error=e),
+                parse_mode="html",
+            )
             self.browser = None
 
     async def start(self):
         """Run telminal instance by calling this method"""
 
-        await self.setup_browser()
         from telethon import events
 
         handlers = {
@@ -219,6 +232,8 @@ class Telminal:
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
+        await self.setup_browser()
+        await self.bot.run_until_disconnected()
 
     async def render_xtermjs(self, process: TProcess):
         """Returns parsed output and screenshot of a process"""
@@ -284,6 +299,8 @@ class Telminal:
                     f"cd: {param}: No such file or directory",
                     reply_to=request_id,
                 )
+        elif command.lower() == "!setup_browser":
+            await self.setup_browser()
 
     async def _send_download_buttons(self, event):
         from telethon import Button

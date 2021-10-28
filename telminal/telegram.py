@@ -31,6 +31,8 @@ class Telegram:
         await self._client.start(bot_token=self._token)
         for handler, type_ in handlers.items():
             self._client.add_event_handler(handler, type_)
+
+    async def run_until_disconnected(self):
         await self._client.run_until_disconnected()
 
     async def send_message(
@@ -41,6 +43,7 @@ class Telegram:
         reply_to: int = None,
         buttons=None,
         file=None,
+        parse_mode=None,
     ):
         return await self._client.send_message(
             chat_id,
@@ -49,6 +52,7 @@ class Telegram:
             reply_to=reply_to,
             buttons=buttons,
             file=file,
+            parse_mode=parse_mode,
         )
 
     async def edit_message(
