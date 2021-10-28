@@ -78,7 +78,8 @@ class TProcess:
         with open(file, "w", encoding="utf-8") as html:
             html.write(
                 utils.HMTL_TEMPLATE.format(
-                    title=f"{self.pid} -> {self.command}", data=self.full_output
+                    title=f"{self.pid} -> {self.command}",
+                    data=self.full_output.replace("`", "\`"),
                 )
             )
         return file
