@@ -10,6 +10,7 @@ class Telegram:
     # upload limitaion at this moment > 2GB
     UPLOAD_LIMIT = 2147483648
     MEDIA_CAPTION_LIMIT = 1024
+    INLINE_RESULT_LIMIT = 50
 
     def __init__(
         self, api_id: int, api_hash: str, token: str, session_name: str
