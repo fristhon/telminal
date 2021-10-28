@@ -164,6 +164,7 @@ Fix the error and after that send me <code>!setup_browser</code>
         self.interactive_process = None
         self.bot = Telegram(api_id, api_hash, token, session_name)
         self.admins = admins
+        self._render = True
 
     @classmethod
     async def process_cleaner(cls):
@@ -237,6 +238,13 @@ Fix the error and after that send me <code>!setup_browser</code>
 
     async def render_xtermjs(self, process: TProcess):
         """Returns parsed output and screenshot of a process"""
+
+        output = process.media_output
+        image = None
+
+        if self.browser is None or self._render is False:
+            return output, image
+
         try:
             page = await self.browser.newPage()
             await page.goto((process.html).as_uri())
@@ -250,8 +258,8 @@ Fix the error and after that send me <code>!setup_browser</code>
             await page.close()
 
         except Exception:
-            output = process.media_output
-            image = None
+            # TODO log this
+            pass
 
         return output, image
 
@@ -302,6 +310,11 @@ Fix the error and after that send me <code>!setup_browser</code>
         elif command.lower() == "!setup_browser":
             await self.setup_browser()
 
+        elif command == "/image_on":
+            self._render = True
+        elif command == "/image_off":
+            self._render = False
+
     async def _send_download_buttons(self, event):
         from telethon import Button
 
@@ -340,7 +353,7 @@ Fix the error and after that send me <code>!setup_browser</code>
 
         elif (
             self.interactive_process is None
-            and command.startswith("!")
+            and command.startswith(("!", "/"))
             or command.split()[0] == "cd"
         ):
             await self._special_commands_handler(command, event)
