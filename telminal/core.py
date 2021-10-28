@@ -412,7 +412,7 @@ Fix the error and after that send me <code>!setup_browser</code>
 
         builder = event.builder
         results = []
-        file_name_pattern = re.compile(r"(.+)\s\d{2}:*\d{2}\s")
+        file_name_pattern = re.compile(r"(.+)\s\d{2}:*\d{2}\s\d+\s")
         for file in files[: Telegram.INLINE_RESULT_LIMIT]:
             # means this is a file and not a directory
             if file.startswith("-"):
