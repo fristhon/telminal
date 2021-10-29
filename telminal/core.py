@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import signal
 from functools import partial
 from io import StringIO
 from pathlib import Path
@@ -146,6 +147,7 @@ class Telminal:
 
     PROCESS_CLEANER_DELAY = 100
     PROCESS_OUTPUT_LIFE_TIME = 60
+    AUTH_TOKEN_EXPIRE_TIME = 60
 
     def __init__(
         self,
@@ -153,12 +155,12 @@ class Telminal:
         api_id: int,
         api_hash: str,
         token: str,
-        admins: list,
+        admins: list = None,
         session_name: str = "telminal",
     ) -> None:
         self.interactive_process = None
         self.bot = Telegram(api_id, api_hash, token, session_name)
-        self.admins = admins
+        self.admins = admins if admins is not None else []
         self._render = True
         self._watch_tasks = {}
 
@@ -178,6 +180,12 @@ class Telminal:
 
     def check_permission(func):
         async def inner(self, event):
+            if not self.admins and event.message.message == self._authentication_token:
+                self.admins.append(event.sender_id)
+                await self.bot.send_message(event.chat_id, "HackerMan! 😉✔️")
+                del self._authentication_token
+                return
+
             if event.sender_id not in self.admins:
                 return
             await func(self, event)
@@ -208,15 +216,27 @@ class Telminal:
             )
             self.browser = None
 
+    def _token_timeout(self, *_args):
+        signal.alarm(0) if self.admins else self._generate_authentication_token()
+
+    def _generate_authentication_token(self):
+        import uuid
+        import sys
+
+        self._authentication_token = uuid.uuid4().hex[:7]
+        sys.stdout.write(
+            "New token generated...: {}\n\n".format(self._authentication_token)
+        )
+        signal.signal(signal.SIGALRM, self._token_timeout)
+        signal.alarm(Telegram.AUTH_TOKEN_EXPIRE_TIME)
+
     async def start(self):
         """Run telminal instance by calling this method"""
 
         from telethon import events
 
         handlers = {
-            self._all_messages_handler: events.NewMessage(
-                incoming=True, from_users=self.admins
-            ),
+            self._all_messages_handler: events.NewMessage(incoming=True),
             self._terminate_handler: events.CallbackQuery(pattern=r"terminate&\d+"),
             self._html_handler: events.CallbackQuery(pattern=r"html&\d+"),
             self._interactive_handler: events.CallbackQuery(pattern=r"interact&\d+"),
@@ -232,6 +252,8 @@ class Telminal:
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
+        if not self.admins:
+            self._generate_authentication_token()
         await self.setup_browser()
         await self.bot.run_until_disconnected()
 
