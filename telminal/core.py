@@ -368,9 +368,9 @@ class Telminal:
         elif command.lower() == "!setup_browser":
             await self.setup_browser()
 
-        elif command == "/image_on":
+        elif command.startswith("/image_on"):
             self._render = True
-        elif command == "/image_off":
+        elif command.startswith("/image_off"):
             self._render = False
 
         elif command.startswith("!watch"):
@@ -378,7 +378,7 @@ class Telminal:
                 self._new_watcher(chat_id, request_id, event.message.id, command)
             )
 
-        elif command == "/tasks":
+        elif command.startswith("/tasks"):
             await self._show_tasks_handler(chat_id)
 
     async def _send_download_buttons(self, event):
@@ -411,6 +411,7 @@ class Telminal:
             buttons=buttons,
         )
 
+    @check_permission
     async def _all_messages_handler(self, event):
         command: str = event.message.message
 
