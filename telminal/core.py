@@ -13,6 +13,7 @@ from time import time
 import pexpect
 from pexpect.exceptions import EOF
 from pexpect.exceptions import TIMEOUT
+from telethon.client import messages
 
 from . import utils
 from .telegram import Telegram
@@ -408,6 +409,34 @@ class Telminal:
 
         elif command.startswith("/tasks"):
             await self._show_tasks_handler(chat_id)
+
+        elif (
+            command.startswith(("!trust", "!untrust"))
+            and event.sender_id == self.admins[0]
+        ):
+            await self._trust_switcher(command, event, request_id)
+
+    async def _trust_switcher(self, command, event, request_id):
+        reply_message = await event.message.get_reply_message()
+        reply_sender_id = reply_message.sender_id
+        reply_to = request_id
+
+        if command == "!trust":
+            if reply_sender_id is None:
+                message = "I can't trust to an Anonymous admin!"
+            else:
+                message = "Repeat your command please, you are a trusted user now"
+                self.admins.append(reply_sender_id)
+                reply_to = reply_message.id
+
+        elif command == "!untrust" and reply_sender_id != self.admins[0]:
+            message = "Done, removed from trusted users"
+            try:
+                self.admins.remove(reply_sender_id)
+            except ValueError:
+                pass
+
+        await self.bot.send_message(event.chat_id, message, reply_to=reply_to)
 
     async def _send_download_buttons(self, event):
         from telethon import Button
