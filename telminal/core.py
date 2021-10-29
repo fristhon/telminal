@@ -1,4 +1,6 @@
 import asyncio
+import atexit
+import json
 import os
 import re
 import signal
@@ -159,6 +161,9 @@ class Telminal:
         session_name: str = "telminal",
     ) -> None:
         self.interactive_process = None
+        self._api_id = api_id
+        self._api_hash = api_hash
+        self._token = token
         self.bot = Telegram(api_id, api_hash, token, session_name)
         self.admins = admins if admins is not None else []
         self._render = True
@@ -182,7 +187,7 @@ class Telminal:
         async def inner(self, event):
             if not self.admins and event.message.message == self._authentication_token:
                 self.admins.append(event.sender_id)
-                await self.bot.send_message(event.chat_id, "HackerMan! 😉✔️")
+                await self.bot.send_message(event.chat_id, "Welcome HackerMan!")
                 del self._authentication_token
                 return
 
@@ -255,6 +260,7 @@ class Telminal:
         if not self.admins:
             self._generate_authentication_token()
         await self.setup_browser()
+        atexit.register(self._exit_jobs)
         await self.bot.run_until_disconnected()
 
     async def render_xtermjs(self, process: TProcess):
@@ -640,3 +646,13 @@ class Telminal:
     def _find_process_by_event(event) -> TProcess:
         pid = int(event.data.decode().split("&")[-1])
         return Telminal.all_processes.get(pid)
+
+    def _exit_jobs(self):
+        config = {
+            "api_id": self._api_id,
+            "api_hash": self._api_hash,
+            "token": self._token,
+            "admins": self.admins,
+        }
+        with open("config.json", "w", encoding="utf-8") as file:
+            file.write(json.dumps(config))
