@@ -228,7 +228,7 @@ class Telminal:
             "New token generated...: {}\n\n".format(self._authentication_token)
         )
         signal.signal(signal.SIGALRM, self._token_timeout)
-        signal.alarm(Telegram.AUTH_TOKEN_EXPIRE_TIME)
+        signal.alarm(Telminal.AUTH_TOKEN_EXPIRE_TIME)
 
     async def start(self):
         """Run telminal instance by calling this method"""
