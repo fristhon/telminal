@@ -248,6 +248,20 @@ class Telminal:
         signal.signal(signal.SIGALRM, self._token_timeout)
         signal.alarm(Telminal.AUTH_TOKEN_EXPIRE_TIME)
 
+    def find_process_by_event(func):
+        async def inner(self, event):
+            pid = int(event.data.decode().split("&")[-1])
+            process = Telminal.all_processes.get(pid)
+            if process is None:
+                await event.answer("this process not exist anymore", alert=True)
+                # clear button
+                await self.bot.edit_message(event.chat_id, message_id=event.message_id)
+                return
+
+            await func(self, event, process)
+
+        return inner
+
     async def start(self):
         """Run telminal instance by calling this method"""
         self.bot = Telegram(
@@ -314,12 +328,14 @@ class Telminal:
         process.run()
         return process
 
-    async def _info_handler(self, event):
-        process = self._find_process_by_event(event)
+    @check_permission
+    @find_process_by_event
+    async def _info_handler(self, event, process):
         await event.answer(str(process), alert=True)
 
-    async def _enter_handler(self, event):
-        process = self._find_process_by_event(event)
+    @check_permission
+    @find_process_by_event
+    async def _enter_handler(self, event, process):
         process.push("^m")
         await event.answer("Enter pressed...")
 
@@ -367,6 +383,7 @@ class Telminal:
 
         return message, buttons
 
+    @check_permission
     async def _cancell_task_handler(self, event):
         task_id = int(event.data.decode().split("&")[-1])
         try:
@@ -522,18 +539,13 @@ class Telminal:
             asyncio.shield(self._run_in_background(process, event.chat_id))
 
     @check_permission
-    async def _terminate_handler(self, event):
-        process = Telminal._find_process_by_event(event)
+    @find_process_by_event
+    async def _terminate_handler(self, event, process):
         process.terminate()
 
     @check_permission
-    async def _html_handler(self, event):
-        process = Telminal._find_process_by_event(event)
-        if process is None:
-            await event.answer("this process not exist anymore", alert=True)
-            # clear button
-            await self.bot.edit_message(event.chat_id, message_id=event.message_id)
-            return
+    @find_process_by_event
+    async def _html_handler(self, event, process):
         await self.bot.send_file(
             event.chat_id,
             process.html,
@@ -553,8 +565,8 @@ class Telminal:
         return "Normal mode activated"
 
     @check_permission
-    async def _interactive_handler(self, event):
-        process = self._find_process_by_event(event)
+    @find_process_by_event
+    async def _interactive_handler(self, event, process):
         if self.interactive_process is process:
             answer = self.reset_interactive_process()
         else:
@@ -694,11 +706,6 @@ class Telminal:
         finally:
             if self.interactive_process is process:
                 self.reset_interactive_process()
-
-    @staticmethod
-    def _find_process_by_event(event) -> TProcess:
-        pid = int(event.data.decode().split("&")[-1])
-        return Telminal.all_processes.get(pid)
 
     def _exit_jobs(self):
         config = {
