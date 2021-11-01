@@ -1,2 +1,4 @@
 pytest
 pytest-asyncio
+pyppeteer==0.2.6
+pexpect==4.8.0
