@@ -524,6 +524,8 @@ class Telminal:
         )
 
     def set_interactive_process(self, process):
+        if isinstance(self.interactive_process, TProcess):
+            self.interactive_process.is_interactive_process = False
         self.interactive_process = process
         process.is_interactive_process = True
         return f"You are talking to PID {process.pid}"
