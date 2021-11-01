@@ -1,8 +1,5 @@
 import os
 
-from telethon import TelegramClient
-from telethon.errors import FilePartsInvalidError
-
 from . import utils
 
 
@@ -20,6 +17,8 @@ class Telegram:
         self._token = token
         self.session_name = session_name
         self._remove_old_sessions()
+        from telethon import TelegramClient
+
         self._client = TelegramClient(session_name, api_id, api_hash)
         self._client.parse_mode = None
 

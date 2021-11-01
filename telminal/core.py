@@ -13,7 +13,6 @@ from time import time
 import pexpect
 from pexpect.exceptions import EOF
 from pexpect.exceptions import TIMEOUT
-from telethon.client import messages
 
 from . import utils
 from .telegram import Telegram
@@ -40,12 +39,13 @@ class TProcess:
         self.buttons = None
         self.is_interactive_process = False
 
-    def run(self) -> None:
+    def run(self, stream=True) -> None:
         self._process = pexpect.spawn("/bin/bash", ["-c", self.command], timeout=None)
         self.pid = self._process.pid
         self.is_running = True
         self.start_time = time()
-        asyncio.create_task(self.stream())
+        if stream is True:
+            asyncio.create_task(self.stream())
 
     def done(self):
         self.is_running = False
@@ -165,7 +165,7 @@ class Telminal:
         self._api_id = api_id
         self._api_hash = api_hash
         self._token = token
-        self.bot = Telegram(api_id, api_hash, token, session_name)
+        self.session_name = session_name
         self.admins = admins if admins is not None else []
         self._render = True
         self._watch_tasks = {}
@@ -238,7 +238,12 @@ class Telminal:
 
     async def start(self):
         """Run telminal instance by calling this method"""
-
+        self.bot = Telegram(
+            api_id=self._api_id,
+            api_hash=self._api_hash,
+            token=self._token,
+            session_name=self.session_name,
+        )
         from telethon import events
 
         handlers = {
