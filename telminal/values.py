@@ -32,7 +32,7 @@ PROCESS_INFO_MSG = """\
 PID : {}
 Status : {}
 
-Start at : {}
+Start time : {}
 Last update : {}
 
 Run time: {}

@@ -126,16 +126,16 @@ class TProcess:
                 interact_switch_text = "Exit interactive mode"
 
             buttons = [
-                [Button.inline("Info", data=f"info&{self.pid}")],
-                [Button.inline("Enter", data=f"enter&{self.pid}")],
-                [Button.inline("Terminate", data=f"terminate&{self.pid}")],
+                [Button.inline("💡 Info 💡", data=f"info&{self.pid}")],
+                [Button.inline("↩️ Enter ↩️", data=f"enter&{self.pid}")],
                 [Button.inline(interact_switch_text, data=f"interact&{self.pid}")],
-                [Button.inline("HTML", data=f"html&{self.pid}")],
+                [Button.inline("🛑 Terminate 🛑", data=f"terminate&{self.pid}")],
+                [Button.inline("🌐 HTML 🌐", data=f"html&{self.pid}")],
             ]
         else:
             buttons = [
-                [Button.inline("Info", data=f"info&{self.pid}")],
-                [Button.inline("HTML", data=f"html&{self.pid}")],
+                [Button.inline("💡 Info 💡", data=f"info&{self.pid}")],
+                [Button.inline("🌐 HTML 🌐", data=f"html&{self.pid}")],
             ]
 
         if self.buttons != buttons:
@@ -147,7 +147,7 @@ class TProcess:
         return new_buttons or (new_output and self.last_message != new_output)
 
     def __str__(self) -> str:
-        status = "Running" if self.is_running else "Done"
+        status = "🔄 Running" if self.is_running else "✔️ Done"
         start_at = utils.timestamp_to_readable(self.start_time)
         last_update = utils.timestamp_to_readable(self.last_update_time)
         run_time = utils.seconds_to_readable(self.run_time)
