@@ -1,5 +1,7 @@
 import contextlib
 import os
+from datetime import datetime
+from datetime import timedelta
 
 # inspired from https://github.com/cs01/pyxtermjs/blob/master/pyxtermjs/index.html
 HMTL_TEMPLATE = """<html>
@@ -48,3 +50,12 @@ HMTL_TEMPLATE = """<html>
 def silent_file_remover(file):
     with contextlib.suppress(FileNotFoundError):
         os.remove(file)
+
+
+def timestamp_to_readable(timestamp: float):
+    dt = datetime.fromtimestamp(timestamp)
+    return f"{dt.hour}:{dt.minute}:{dt.second}"
+
+
+def seconds_to_readable(seconds: int):
+    return str(timedelta(seconds=seconds))

@@ -19,6 +19,7 @@ from .telegram import Telegram
 from telminal.values import ACTIVE_TASKS_MSG
 from telminal.values import BROWSER_ERROR_MSG
 from telminal.values import EMPTY_TASKS_MSG
+from telminal.values import PROCESS_INFO_MSG
 
 path = Path()
 CWD = path.cwd()
@@ -125,6 +126,7 @@ class TProcess:
                 interact_switch_text = "Exit interactive mode"
 
             buttons = [
+                [Button.inline("Info", data=f"info&{self.pid}")],
                 [Button.inline("Enter", data=f"enter&{self.pid}")],
                 [Button.inline("Terminate", data=f"terminate&{self.pid}")],
                 [Button.inline(interact_switch_text, data=f"interact&{self.pid}")],
@@ -132,6 +134,7 @@ class TProcess:
             ]
         else:
             buttons = [
+                [Button.inline("Info", data=f"info&{self.pid}")],
                 [Button.inline("HTML", data=f"html&{self.pid}")],
             ]
 
@@ -142,6 +145,15 @@ class TProcess:
 
     def has_new_state(self, new_buttons, new_output):
         return new_buttons or (new_output and self.last_message != new_output)
+
+    def __str__(self) -> str:
+        status = "Running" if self.is_running else "Done"
+        start_at = utils.timestamp_to_readable(self.start_time)
+        last_update = utils.timestamp_to_readable(self.last_update_time)
+        run_time = utils.seconds_to_readable(self.run_time)
+        return PROCESS_INFO_MSG.format(
+            self.pid, status, start_at, last_update, run_time
+        )
 
 
 class Telminal:
@@ -260,6 +272,7 @@ class Telminal:
             self._cancell_task_handler: events.CallbackQuery(
                 pattern=r"cancell_task&\d+"
             ),
+            self._info_handler: events.CallbackQuery(pattern=r"info&\d+"),
         }
         asyncio.shield(Telminal.process_cleaner())
         await self.bot.start(handlers)
@@ -300,6 +313,10 @@ class Telminal:
         process = TProcess(command, request_id)
         process.run()
         return process
+
+    async def _info_handler(self, event):
+        process = self._find_process_by_event(event)
+        await event.answer(str(process), alert=True)
 
     async def _enter_handler(self, event):
         process = self._find_process_by_event(event)

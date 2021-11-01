@@ -27,3 +27,13 @@ Create new watcher same as below examples:
 Be respectfull to telegram API limitations please:
 https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this
 """
+
+PROCESS_INFO_MSG = """\
+PID : {}
+Status : {}
+
+Start at : {}
+Last update : {}
+
+Run time: {}
+"""
