@@ -585,11 +585,12 @@ class Telminal:
 
         builder = event.builder
         results = []
-        file_name_pattern = re.compile(r"(.+)\s\d{2}:*\d{2}\s\d+\s")
+        # handle space in file name
+        file_name_pattern = re.compile(r"(.+)\s+\d{2}:*\d{2}\s+\d+\s")
         for file in files[: Telegram.INLINE_RESULT_LIMIT]:
-            # means this is a file and not a directory
-            if file.startswith("-"):
-                # handle space in file name
+            # `-` means this is a file and not a directory
+            # `r` added for `-?????????` situations (permission)
+            if file.startswith("-r"):
                 file_name = file_name_pattern.findall(file[::-1])[0][::-1]
                 results.append(
                     builder.article(
