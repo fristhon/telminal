@@ -4,7 +4,7 @@ from datetime import datetime
 from datetime import timedelta
 
 # inspired from https://github.com/cs01/pyxtermjs/blob/master/pyxtermjs/index.html
-HMTL_TEMPLATE = """<html>
+HTML_TEMPLATE = """<html>
   <head>
     <meta charset="utf-8" />
     <title>{title}</title>

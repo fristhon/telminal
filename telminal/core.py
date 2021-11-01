@@ -85,7 +85,7 @@ class TProcess:
         file = CWD / f"{self.pid}.html"
         with open(file, "w", encoding="utf-8") as html:
             html.write(
-                utils.HMTL_TEMPLATE.format(
+                utils.HTML_TEMPLATE.format(
                     title=f"{self.pid} -> {self.command}",
                     data=self.full_output.replace("`", "\`"),
                 )
