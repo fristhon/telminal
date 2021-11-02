@@ -4,6 +4,7 @@ import json
 import os
 import re
 import signal
+import tempfile
 from functools import partial
 from io import StringIO
 from pathlib import Path
@@ -21,8 +22,8 @@ from telminal.values import BROWSER_ERROR_MSG
 from telminal.values import EMPTY_TASKS_MSG
 from telminal.values import PROCESS_INFO_MSG
 
-path = Path()
-CWD = path.cwd()
+temp_dir = tempfile.TemporaryDirectory(prefix="telminal-")
+TEMP_PATH = Path(temp_dir.name)
 
 
 class TProcess:
@@ -82,7 +83,7 @@ class TProcess:
 
     @property
     def html(self):
-        file = CWD / f"{self.pid}.html"
+        file = TEMP_PATH / f"{self.pid}.html"
         with open(file, "w", encoding="utf-8") as html:
             html.write(
                 utils.HTML_TEMPLATE.format(
@@ -193,8 +194,8 @@ class Telminal:
                     and int(time() - process.done_time) > cls.PROCESS_OUTPUT_LIFE_TIME
                 ):
                     del cls.all_processes[pid]
-                    utils.silent_file_remover(f"{pid}.html")
-                    utils.silent_file_remover(f"{pid}.png")
+                    utils.silent_file_remover(TEMP_PATH / f"{pid}.html")
+                    utils.silent_file_remover(TEMP_PATH / f"{pid}.png")
             await asyncio.sleep(cls.PROCESS_CLEANER_DELAY)
 
     def check_permission(func):
@@ -311,13 +312,13 @@ class Telminal:
         try:
             page = await self.browser.newPage()
             await page.goto((process.html).as_uri())
-            picture_name = f"{process.pid}.png"
-            await page.screenshot({"path": picture_name, "fullPage": True})
+            path = TEMP_PATH / f"{process.pid}.png"
+            await page.screenshot({"path": path, "fullPage": True})
 
             await page.evaluate("term.selectAll()")
             output = await page.evaluate("term.getSelection()")
             output = Telegram.media_strip(output)
-            image = picture_name
+            image = path
             await page.close()
 
         except Exception:
@@ -743,3 +744,5 @@ class Telminal:
         }
         with open("config.json", "w", encoding="utf-8") as file:
             file.write(json.dumps(config))
+
+        temp_dir.cleanup()
