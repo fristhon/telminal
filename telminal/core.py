@@ -87,7 +87,7 @@ class TProcess:
             html.write(
                 utils.HTML_TEMPLATE.format(
                     title=f"{self.pid} -> {self.command}",
-                    data=self.full_output.replace("`", "\`"),
+                    data=self.full_output.replace("`", r"\`"),
                 )
             )
         return file
@@ -200,7 +200,9 @@ class Telminal:
         async def inner(self, event):
             if not self.admins and event.message.message == self._authentication_token:
                 self.admins.append(event.sender_id)
-                await self.bot.send_message(event.chat_id, "Welcome HackerMan!")
+                await self.bot.send_message(
+                    event.chat_id, "Welcome to telminal, send your commands"
+                )
                 del self._authentication_token
                 return
 
@@ -217,7 +219,7 @@ class Telminal:
             self.browser = await launch(
                 options={
                     "args": [
-                        "--disable-gpu  ",
+                        "--disable-gpu",
                         "--disable-dev-shm-usage",
                         "--disable-setuid-sandbox",
                         "--no-sandbox",
@@ -337,7 +339,7 @@ class Telminal:
     @find_process_by_event
     async def _enter_handler(self, event, process):
         process.push("^m")
-        await event.answer("Enter pressed...")
+        await event.answer("Enter key pressed...")
 
     async def _new_watcher(self, chat_id, request_id, task_id, command):
         self._watch_tasks[task_id] = command.replace("!watch", "")
@@ -399,31 +401,35 @@ class Telminal:
             parse_mode="html",
         )
 
+    async def _upload_file(self, chat_id, param, request_id):
+        if not os.path.isfile(param):
+            await self.bot.send_message(
+                chat_id, f"`{param}` is not a file", reply_to=request_id
+            )
+            return
+
+        message = await self.bot.send_message(
+            chat_id, "Uploading started...", reply_to=request_id
+        )
+        partial_callback = partial(
+            self._progress_callback,
+            chat_id=chat_id,
+            message_id=message.id,
+            title=f"Uploading `{param}`",
+        )
+        await self.bot.send_file(
+            chat_id,
+            file=param,
+            reply_to=request_id,
+            progress_callback=partial_callback,
+        )
+
     async def _special_commands_handler(self, command: str, event):
         param = command.split(" ", 1)[-1]
         chat_id, request_id = event.chat_id, event.message.id
         if command.startswith("!get"):
-            if not os.path.isfile(param):
-                await self.bot.send_message(
-                    chat_id, f"`{param}` is not a file", reply_to=request_id
-                )
-                return
+            await self._upload_file(chat_id, param, request_id)
 
-            message = await self.bot.send_message(
-                chat_id, "Uploading started...", reply_to=request_id
-            )
-            partial_callback = partial(
-                self._progress_callback,
-                chat_id=event.chat_id,
-                message_id=message.id,
-                title=f"Uploading `{param}`",
-            )
-            await self.bot.send_file(
-                chat_id,
-                file=param,
-                reply_to=request_id,
-                progress_callback=partial_callback,
-            )
         elif command.startswith("cd"):
             try:
                 os.chdir(param)
@@ -533,7 +539,6 @@ class Telminal:
                 await self.response(self.interactive_process, event.chat_id)
         else:
             process = self._new_process(command, event.message.id)
-            # TODO better?
             Telminal.all_processes[process.pid] = process
 
             asyncio.shield(self._run_in_background(process, event.chat_id))
@@ -585,7 +590,7 @@ class Telminal:
 
         builder = event.builder
         results = []
-        # handle space in file name
+
         file_name_pattern = re.compile(r"(.+)\s+\d{2}:*\d{2}\s+\d+\s")
         for file in files[: Telegram.INLINE_RESULT_LIMIT]:
             # `-` means this is a file and not a directory
