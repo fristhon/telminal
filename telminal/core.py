@@ -181,6 +181,7 @@ class Telminal:
         self.admins = admins if admins is not None else []
         self._render = True
         self._watch_tasks = {}
+        self._last_process = None
 
     @classmethod
     async def process_cleaner(cls):
@@ -341,9 +342,8 @@ class Telminal:
         process.push("^m")
         await event.answer("Enter key pressed...")
 
-    async def _new_watcher(self, chat_id, request_id, task_id, command):
-        self._watch_tasks[task_id] = command.replace("!watch", "")
-        match = re.match(r"!watch\s(\d+)([s,m,h])\s(.+)", command)
+    async def _new_watcher(self, chat_id, request_id, message):
+        match = re.match(r"!watch\s(\d+)([s,m,h])\s(.+)", message)
         if not match:
             await self.bot.send_message(
                 chat_id,
@@ -352,6 +352,7 @@ class Telminal:
             )
             return
 
+        self._watch_tasks[request_id] = message.replace("!watch", "")
         count, type_, file = match.groups()
         second_mapping = {
             "s": 1,
@@ -359,13 +360,13 @@ class Telminal:
             "h": 60 * 60,
         }
         while True:
-            if self._watch_tasks.get(task_id) is None:
+            if self._watch_tasks.get(request_id) is None:
                 break
             await self.bot.send_file(chat_id, file, reply_to=request_id)
             delay = int(count) * second_mapping[type_]
             await asyncio.sleep(delay)
 
-    async def _show_tasks_handler(self, chat_id):
+    async def _show_tasks(self, chat_id):
         message, buttons = self._get_tasks_message()
         await self.bot.send_message(
             chat_id, message, buttons=buttons, parse_mode="html"
@@ -401,10 +402,10 @@ class Telminal:
             parse_mode="html",
         )
 
-    async def _upload_file(self, chat_id, param, request_id):
-        if not os.path.isfile(param):
+    async def _upload_file(self, chat_id, path, request_id):
+        if not os.path.isfile(path):
             await self.bot.send_message(
-                chat_id, f"`{param}` is not a file", reply_to=request_id
+                chat_id, f"`{path}` is not a file", reply_to=request_id
             )
             return
 
@@ -415,45 +416,47 @@ class Telminal:
             self._progress_callback,
             chat_id=chat_id,
             message_id=message.id,
-            title=f"Uploading `{param}`",
+            title=f"Uploading `{path}`",
         )
         await self.bot.send_file(
             chat_id,
-            file=param,
+            file=path,
             reply_to=request_id,
             progress_callback=partial_callback,
         )
 
-    async def _special_commands_handler(self, command: str, event):
-        param = command.split(" ", 1)[-1]
-        chat_id, request_id = event.chat_id, event.message.id
-        if command.startswith("!get"):
-            await self._upload_file(chat_id, param, request_id)
-
-        elif command.startswith("cd"):
-            try:
-                os.chdir(param)
-            except FileNotFoundError:
-                await self.bot.send_message(
-                    chat_id,
-                    f"cd: {param}: No such file or directory",
-                    reply_to=request_id,
-                )
-        elif command.lower() == "!setup_browser":
-            await self.setup_browser()
-
-        elif command.startswith("/image_on"):
+    async def _run_bot_father_commands(self, chat_id, command):
+        if command == "/image_on":
             self._render = True
-        elif command.startswith("/image_off"):
+        elif command == "/image_off":
             self._render = False
 
-        elif command.startswith("!watch"):
-            asyncio.shield(
-                self._new_watcher(chat_id, request_id, event.message.id, command)
-            )
+        elif command == "/tasks":
+            await self._show_tasks(chat_id)
 
-        elif command.startswith("/tasks"):
-            await self._show_tasks_handler(chat_id)
+        elif command == "/interacive_mode":
+            if getattr(self._last_process, "is_running", None) is True:
+                self.set_interactive_process(self._last_process)
+            else:
+                await self.bot.send_message(
+                    chat_id,
+                    "last process finished, you must select another process manually",
+                )
+        elif command == "/normal_mode":
+            self.reset_interactive_process()
+
+    async def _run_extra_commands(self, event, command, message):
+        chat_id, request_id = event.chat_id, event.message.id
+
+        if re.match(r"!get\s.+", message):
+            path = message.split(" ", 1)[1]
+            await self._upload_file(chat_id, path, request_id)
+
+        elif command == "!setup_browser":
+            await self.setup_browser()
+
+        elif command == "!watch":
+            asyncio.shield(self._new_watcher(chat_id, request_id, message))
 
         elif (
             command.startswith(("!trust", "!untrust"))
@@ -513,22 +516,38 @@ class Telminal:
             buttons=buttons,
         )
 
+    async def _change_directory(self, event):
+        path = event.message.message.split(" ", 1)[-1]
+        try:
+            os.chdir(path)
+        except Exception as error:
+            await self.bot.send_message(
+                event.chat_id,
+                str(error),
+                reply_to=event.message.id,
+            )
+
     @check_permission
     async def _all_messages_handler(self, event):
-        command: str = event.message.message
+        message = event.message.message
+        escape = message.startswith("\\")
+        chat_id, request_id = event.chat_id, event.message.id
 
         if event.file:
             await self._send_download_buttons(event)
 
-        elif (
-            self.interactive_process is None
-            and command.startswith(("!", "/"))
-            or command.split()[0] == "cd"
-        ):
-            await self._special_commands_handler(command, event)
+        elif message.startswith(("cd", "/", "!")) and not escape:
+            command = message.split(" ", 1)[0]
+            if message.startswith("/"):
+                await self._run_bot_father_commands(chat_id, command)
+            elif message.startswith("!"):
+                await self._run_extra_commands(event, command, message)
+            else:
+                await self._change_directory(event)
 
         elif self.interactive_process:
-            self.interactive_process.push(command)
+            message = message[1:] if escape else message
+            self.interactive_process.push(message)
             # maybe background task finish sooner
             # also a minimum time must be passed from last update
             # editing a message for each input charachter not reasonable/possible
@@ -536,12 +555,12 @@ class Telminal:
                 int(time()) - self.interactive_process.last_update_time >= 2
             )
             if self.interactive_process is not None and next_update_arrived:
-                await self.response(self.interactive_process, event.chat_id)
+                await self.response(self.interactive_process, chat_id)
         else:
-            process = self._new_process(command, event.message.id)
+            process = self._new_process(message, request_id)
             Telminal.all_processes[process.pid] = process
 
-            asyncio.shield(self._run_in_background(process, event.chat_id))
+            asyncio.shield(self._run_in_background(process, chat_id))
 
     @check_permission
     @find_process_by_event
@@ -565,7 +584,8 @@ class Telminal:
         return f"You are talking to PID {process.pid}"
 
     def reset_interactive_process(self):
-        self.interactive_process.is_interactive_process = False
+        if isinstance(self.interactive_process, TProcess):
+            self.interactive_process.is_interactive_process = False
         self.interactive_process = None
         return "Normal mode activated"
 
@@ -687,6 +707,7 @@ class Telminal:
                     file=image,
                 )
             ).id
+            self._last_process = process
             process.is_partial = True
         process.last_message = output
 
