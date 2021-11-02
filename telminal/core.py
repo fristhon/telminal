@@ -426,15 +426,15 @@ class Telminal:
         )
 
     async def _run_bot_father_commands(self, chat_id, command):
-        if command == "/image_on":
+        if command.startswith("/image_on"):
             self._render = True
-        elif command == "/image_off":
+        elif command.startswith("/image_off"):
             self._render = False
 
-        elif command == "/tasks":
+        elif command.startswith("/tasks"):
             await self._show_tasks(chat_id)
 
-        elif command == "/interacive_mode":
+        elif command.startswith("/interacive_mode"):
             if getattr(self._last_process, "is_running", None) is True:
                 self.set_interactive_process(self._last_process)
             else:
@@ -442,7 +442,7 @@ class Telminal:
                     chat_id,
                     "last process finished, you must select another process manually",
                 )
-        elif command == "/normal_mode":
+        elif command.startswith("/normal_mode"):
             self.reset_interactive_process()
 
     async def _run_extra_commands(self, event, command, message):
