@@ -17,7 +17,6 @@ from pexpect.exceptions import TIMEOUT
 
 from . import utils
 from .telegram import Telegram
-from telminal import PACKAGE_PATH
 from telminal.values import ACTIVE_TASKS_MSG
 from telminal.values import BROWSER_ERROR_MSG
 from telminal.values import EMPTY_TASKS_MSG
@@ -743,6 +742,8 @@ class Telminal:
             "token": self._token,
             "admins": self.admins,
         }
+        from telminal import PACKAGE_PATH
+
         with open(PACKAGE_PATH / "config.json", "w", encoding="utf-8") as file:
             file.write(json.dumps(config))
 
