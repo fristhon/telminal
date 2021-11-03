@@ -16,6 +16,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
+    setup_requires=["wheel"],
     install_requires=["pexpect>=4.8.0,<5", "Telethon>=1.23.0,<2", "pyppeteer>=0.2.6<1"],
     python_requires=">=3.7",
     packages=find_packages(),
