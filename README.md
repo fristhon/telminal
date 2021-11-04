@@ -99,6 +99,18 @@ A `watcher` task downloads a file periodically. write your first watcher in the 
 3️⃣ get `sql.dump` every 24 hours
 👉 <b>!watch 24h /backups/sql.dump</b>    
 
+---
+
+Finally set Telminal commands in [Botfather](https://t.me/botfather) using this text.
+<pre>
+image_off - Just text output
+image_on - Text and image output
+tasks - List of active tasks
+interacive_mode - Interact with last process
+normal_mode - Process creation mode
+</pre>
+
+
 ## **Thanks**
 [pexpect](https://github.com/pexpect/pexpect)\
 [Telethon](https://github.com/LonamiWebs/Telethon)\
