@@ -1,11 +1,15 @@
+from pathlib import Path
+
 from setuptools import find_packages
 from setuptools import setup
 
 setup(
     name="telminal",
     version="0.1.0",
-    description="A Terminal for Telegram",
-    long_description="",
+    description="A Terminal in Telegram",
+    long_description=Path("README.md").read_text(encoding="utf-8"),
+    long_description_content_type="text/markdown",
+    url="https://github.com/fristhon/telminal",
     author="Mohammadreza Jafari",
     author_email="fristhon@outlook.com",
     license="MIT",
