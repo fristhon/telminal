@@ -3,6 +3,7 @@ venv/
 env/
 build/
 dist/
+.eggs/
 *.egg-info/
 .vscode/
 .tox/
