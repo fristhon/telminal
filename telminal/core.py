@@ -202,6 +202,7 @@ class Telminal:
         async def inner(self, event):
             if not self.admins and event.message.message == self._authentication_token:
                 self.admins.append(event.sender_id)
+                await self.setup_browser()
                 await self.bot.send_message(
                     event.chat_id, "Welcome to telminal, send your commands"
                 )
@@ -296,7 +297,6 @@ class Telminal:
         await self.bot.start(handlers)
         if not self.admins:
             self._generate_authentication_token()
-        await self.setup_browser()
         atexit.register(self._exit_jobs)
         await self.bot.run_until_disconnected()
 
@@ -306,7 +306,7 @@ class Telminal:
         output = process.media_output
         image = None
 
-        if self.browser is None or self._render is False:
+        if getattr(self, "browser", None) is None or self._render is False:
             return output, image
 
         try:
