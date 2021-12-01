@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name="telminal",
-    version="1.0.0",
+    version="1.0.1",
     description="A Terminal in Telegram",
     long_description=Path("README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
