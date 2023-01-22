@@ -104,10 +104,6 @@ class TProcess:
         # TODO seprate this stuff
         self.last_update_time = time()
 
-    def terminate(self):
-        self._process.terminate()
-        self.done()
-
     def push(self, command):
         if command.startswith("^") and len(command) == 2:
             self._process.sendcontrol(command[-1])
