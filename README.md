@@ -21,6 +21,12 @@ You must have a telegram developer API and a bot token\
 [API ID API hash](https://core.telegram.org/api/obtaining_api_id)\
 [Bot token](https://t.me/botfather)\
 Very fast and easy, you can have those. Just follow these two official links.
+
+
+### Try in colab:
+<a href="https://colab.research.google.com/drive/1mnMmXHEs8Um4AaH4dToswcRHNOEi50_f?usp=sharing"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a>
+
+
 ### Installation
     sudo apt-get install python3.9 python3.9-dev python3.9-venv
     python3.9 -m venv venv
